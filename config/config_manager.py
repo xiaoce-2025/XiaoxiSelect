@@ -71,7 +71,7 @@ class ConfigManager:
                 
                 for section in config.sections():
                     if section.startswith('course:'):
-                        course_id = section[8:]  # 去掉 'course:' 前缀
+                        course_id = section[7:]  # 去掉 'course:' 前缀
                         config_data['courses'][course_id] = dict(config.items(section))
                     
                     elif section.startswith('mutex:'):
