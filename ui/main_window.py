@@ -20,7 +20,7 @@ class MainWindow(QMainWindow):
         self.setup_auto_elective()
     
     def init_ui(self):
-        self.setWindowTitle("PKU自动选课程序 v1.0")
+        self.setWindowTitle("PKUElective2025Autumn")
         self.setGeometry(100, 100, 1200, 800)
         
         # 创建中央部件
@@ -32,7 +32,6 @@ class MainWindow(QMainWindow):
         
         # 标题
         title_label = QLabel("PKU自动选课程序")
-        #title_label.setAlignment(qt.AlignmentFlag.AlignCenter)
         title_label.setStyleSheet("""
             QLabel {
                 font-size: 24px;
@@ -46,7 +45,7 @@ class MainWindow(QMainWindow):
         """)
         main_layout.addWidget(title_label)
         
-        # 状态显示
+        # 程序状态显示
         status_layout = QHBoxLayout()
         self.status_label = QLabel("状态: 未启动")
         self.status_label.setStyleSheet("""
@@ -66,7 +65,7 @@ class MainWindow(QMainWindow):
         # 控制按钮
         control_layout = QHBoxLayout()
         
-        # 监控开关
+        # 监控开关（已弃用）
         self.monitor_check = QCheckBox("启动监控")
         self.monitor_check.setStyleSheet("""
             QCheckBox {
@@ -74,6 +73,7 @@ class MainWindow(QMainWindow):
                 padding: 5px;
             }
         """)
+        self.monitor_check.hide()
         
         self.start_btn = QPushButton("启动选课")
         self.start_btn.clicked.connect(self.start_auto_elective)
@@ -124,17 +124,17 @@ class MainWindow(QMainWindow):
         main_layout.addLayout(control_layout)
         
         # 标签页
-        tab_widget = QTabWidget()
+        self.tab_widget = QTabWidget()
         
         # 设置标签页
         self.config_editor = ConfigEditor()
-        tab_widget.addTab(self.config_editor, "设置")
+        self.tab_widget.addTab(self.config_editor, "设置")
         
         # 日志标签页
         self.log_display = LogDisplay()
-        tab_widget.addTab(self.log_display, "日志")
+        self.tab_widget.addTab(self.log_display, "日志")
         
-        main_layout.addWidget(tab_widget)
+        main_layout.addWidget(self.tab_widget)
         
         # 初始化日志系统
         self.setup_logging()
@@ -175,6 +175,8 @@ class MainWindow(QMainWindow):
     def start_auto_elective(self):
         """启动自动选课"""
         try:
+            # 自动切换到日志页面
+            self.tab_widget.setCurrentIndex(1)
             if not self.is_running:
                 # 确保环境是干净的
                 if hasattr(self.environ, 'iaaa_loop_thread') and self.environ.iaaa_loop_thread is not None:
@@ -244,9 +246,9 @@ class MainWindow(QMainWindow):
                 # 停止所有线程
                 for thread in self.threads:
                     if thread.is_alive():
-                        # 尝试优雅地停止线程
-                        # 注意：这里只是标记状态，实际的停止逻辑需要在各个线程中实现
-                        pass
+                        # 强制终止线程（临时用）
+                        self._force_stop_thread(thread)
+
                 
                 # 清空线程列表
                 self.threads = []
@@ -263,6 +265,43 @@ class MainWindow(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "错误", f"停止失败: {str(e)}")
             self.log_display.add_log(f"停止失败: {str(e)}")
+
+    # 强制线程终止（临时，后续待修改autoelective本身代码后做适配）
+    def _force_stop_thread(self, thread):
+        """强制停止线程"""
+        try:
+            # 使用PyQt6的线程终止方法（如果线程是QThread）
+            if hasattr(thread, 'terminate'):
+                thread.terminate()
+                thread.wait()  # 等待线程实际结束
+                self.log_display.add_log(f"已强制终止线程: {thread.name}")
+            else:
+                # 对于非QThread，使用更强制的方法
+                import ctypes
+                
+                if not thread.is_alive():
+                    return
+                    
+                # 获取线程ID
+                thread_id = thread.ident
+                
+                # 使用ctypes调用系统API强制终止线程
+                res = ctypes.pythonapi.PyThreadState_SetAsyncExc(
+                    ctypes.c_long(thread_id),
+                    ctypes.py_object(SystemExit)
+                )
+                
+                if res == 0:
+                    self.log_display.add_log(f"无法终止线程 {thread_id}")
+                elif res != 1:
+                    # 如果返回值不是1，说明调用失败
+                    ctypes.pythonapi.PyThreadState_SetAsyncExc(thread_id, 0)
+                    self.log_display.add_log(f"终止线程 {thread_id} 失败")
+                else:
+                    self.log_display.add_log(f"已强制终止线程: {thread_id}")
+                    
+        except Exception as e:
+            self.log_display.add_log(f"终止线程时出错: {str(e)}")
     
     def check_thread_status(self):
         """检查线程状态"""
@@ -286,7 +325,7 @@ class MainWindow(QMainWindow):
         if self.is_running:
             reply = QMessageBox.question(
                 self, "确认退出", 
-                "程序正在运行中，确定要退出吗？",
+                "选课程序正在运行中，确定要退出吗？",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No
             )

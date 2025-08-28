@@ -79,14 +79,14 @@ class LogDisplay(QWidget):
     def add_log(self, message):
         """添加日志消息"""
         # 如果消息已经包含时间戳，直接显示
-        if message.startswith('20') and ' - ' in message:
+        if message.startswith('[') and ':' in message:
             # 这是来自日志处理器的格式化消息
             self.log_text.append(message)
         else:
             # 这是手动添加的消息，添加时间戳
             from datetime import datetime
             timestamp = datetime.now().strftime("%H:%M:%S")
-            self.log_text.append(f"[{timestamp}] {message}")
+            self.log_text.append(f"[{timestamp}][SYSTEM] {message}")
         
         # 自动滚动到底部
         cursor = self.log_text.textCursor()

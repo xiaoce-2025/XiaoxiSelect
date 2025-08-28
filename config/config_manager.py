@@ -76,15 +76,15 @@ class ConfigManager:
                     
                     elif section.startswith('mutex:'):
                         mutex_id = section[6:]  # 去掉 'mutex:' 前缀
-                        courses = config.get(section, 'courses', '').split(',')
+                        courses = config.get(section, 'courses', fallback='').split(',')
                         courses = [c.strip() for c in courses if c.strip()]
                         config_data['mutex'][mutex_id] = courses
                     
                     elif section.startswith('delay:'):
                         delay_id = section[6:]  # 去掉 'delay:' 前缀
                         config_data['delay'][delay_id] = {
-                            'course': config.get(section, 'course', ''),
-                            'threshold': config.getint(section, 'threshold', 10)
+                            'course': config.get(section, 'course', fallback=''),
+                            'threshold': config.getint(section, 'threshold', fallback= 10)
                         }
             
             # 加载apikey.json

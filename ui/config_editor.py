@@ -6,9 +6,11 @@ import os
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTabWidget, 
                              QPushButton, QLabel, QLineEdit, QSpinBox, 
                              QDoubleSpinBox, QCheckBox, QComboBox, QGroupBox, 
-                             QFormLayout, QMessageBox, QScrollArea, QFrame)
+                             QFormLayout, QMessageBox, QScrollArea, QFrame, QRadioButton, QStackedWidget)
 from PyQt6.QtCore import Qt
 from config.config_manager import ConfigManager
+#from ui.components.QTabBar import VerticalTabBar
+from PyQt6.QtGui import QIcon, QPixmap
 
 class ConfigEditor(QWidget):
     """配置文件编辑器"""
@@ -31,6 +33,11 @@ class ConfigEditor(QWidget):
         
         # 创建标签页
         tab_widget = QTabWidget()
+
+        # 标签居左（待完善，目前标签栏仍居上）
+        # tab_widget.setTabPosition(QTabWidget.TabPosition.West)
+        # 使用自定义QTabBar使文字竖向
+        # tab_widget.setTabBar(VerticalTabBar())
         
         # 用户设置标签页
         user_tab = self.create_user_tab()
@@ -76,30 +83,8 @@ class ConfigEditor(QWidget):
         layout.addWidget(tab_widget)
         layout.addWidget(save_btn)
         self.setLayout(layout)
-    
-    def create_user_tab(self):
-        """创建用户设置标签页"""
-        widget = QWidget()
-        layout = QFormLayout()
-        
-        self.student_id_edit = QLineEdit()
-        self.password_edit = QLineEdit()
-        self.password_edit.setEchoMode(QLineEdit.EchoMode.Password)
-        self.dual_degree_check = QCheckBox()
-        self.identity_combo = QComboBox()
-        self.identity_combo.addItems(["bzx", "bfx"])
-        
-        layout.addRow("学号:", self.student_id_edit)
-        layout.addRow("密码:", self.password_edit)
-        layout.addRow("双学位:", self.dual_degree_check)
-        layout.addRow("身份:", self.identity_combo)
-        
-        widget.setLayout(layout)
-        return widget
-    
-    # 其他创建标签页的方法...
-    # 由于篇幅限制，这里只展示部分代码
-    
+
+    # 加载配置    
     def load_configs(self):
         """加载配置文件"""
         try:
@@ -152,15 +137,17 @@ class ConfigEditor(QWidget):
             # 加载课程配置
             if 'courses' in config_data:
                 self.courses_data = config_data['courses']
-                self.load_course_items()
             
+            # 加载互斥规则
             if 'mutex' in config_data:
                 self.mutex_data = config_data['mutex']
-                self.load_mutex_items()
             
+            # 加载延迟规则
             if 'delay' in config_data:
                 self.delay_data = config_data['delay']
-                self.load_delay_items()
+                    
+            # 更新课程配置界面
+            self.load_course_config()
             
             # 更新统计信息
             self.update_config_stats()
@@ -235,6 +222,55 @@ class ConfigEditor(QWidget):
             if self.log_display:
                 self.log_display.add_log(f"保存配置文件失败: {str(e)}")
             QMessageBox.critical(self, "错误", f"保存配置文件失败: {str(e)}")
+
+    # 各标签页创建
+    # 创建带提示图标的标签函数
+    # help_icon = QIcon(":/icons/help_icon.png")
+
+    @classmethod
+    def create_label_with_tooltip(self, text, tooltip):
+        hbox = QHBoxLayout()
+        label = QLabel(text)
+        # 创建提示标签（使用?图标）
+        tooltip_label = QLabel("?")
+        tooltip_label.setToolTip(tooltip)
+        # 设置样式，使?看起来像提示图标
+        tooltip_label.setStyleSheet("QLabel { color: blue; font-weight: bold; }")
+        tooltip_label.setCursor(Qt.CursorShape.PointingHandCursor)
+        
+        # 使用图标的方法
+        # tooltip_label.setPixmap(help_icon.pixmap(QSize(16, 16)))  # 设置图标大小
+        # tooltip_label.setToolTip(tooltip)
+        # tooltip_label.setCursor(Qt.CursorShape.PointingHandCursor)
+        
+        hbox.addWidget(label)
+        hbox.addWidget(tooltip_label)
+        hbox.addStretch()  # 添加弹性空间
+        hbox.setContentsMargins(0, 0, 0, 0)
+        
+        container = QWidget()
+        container.setLayout(hbox)
+        return container
+
+    def create_user_tab(self):
+        """创建用户设置标签页"""
+        widget = QWidget()
+        layout = QFormLayout()
+        
+        self.student_id_edit = QLineEdit()
+        self.password_edit = QLineEdit()
+        self.password_edit.setEchoMode(QLineEdit.EchoMode.Password)
+        self.dual_degree_check = QCheckBox()
+        self.identity_combo = QComboBox()
+        self.identity_combo.addItems(["bzx", "bfx"])
+        
+        layout.addRow(self.create_label_with_tooltip("IAAA账号:", "请输入您的IAAA认证账号，如: 2500011111"), self.student_id_edit)
+        layout.addRow(self.create_label_with_tooltip("IAAA密码:", "请输入您的IAAA认证密码"), self.password_edit)
+        layout.addRow(self.create_label_with_tooltip("是否为双学位账号", "只要你的账号在登录时需要选择“主修/辅双”身份，此处就需要勾选"), self.dual_degree_check)
+        layout.addRow(self.create_label_with_tooltip("身份", "双学位账号登录身份，bzx主修，bfx辅双"), self.identity_combo)
+        
+        widget.setLayout(layout)
+        return widget
     
     def create_client_tab(self):
         """创建客户端设置标签页"""
@@ -264,17 +300,17 @@ class ConfigEditor(QWidget):
         self.debug_request_check = QCheckBox()
         self.debug_dump_check = QCheckBox()
         
-        layout.addRow("补退选页数:", self.supply_cancel_page_spin)
-        layout.addRow("刷新间隔(秒):", self.refresh_interval_spin)
-        layout.addRow("随机偏差(秒):", self.refresh_random_deviation_spin)
-        layout.addRow("IAAA超时(秒):", self.iaaa_timeout_spin)
-        layout.addRow("选课超时(秒):", self.elective_timeout_spin)
-        layout.addRow("连接池大小:", self.pool_size_spin)
-        layout.addRow("最大生命周期:", self.max_life_spin)
-        layout.addRow("登录循环间隔(秒):", self.login_loop_interval_spin)
-        layout.addRow("打印互斥规则:", self.print_mutex_check)
-        layout.addRow("调试请求:", self.debug_request_check)
-        layout.addRow("调试转储:", self.debug_dump_check)
+        layout.addRow(self.create_label_with_tooltip("补退选页数:", "待刷课程处在“补退选”选课计划的第几页"), self.supply_cancel_page_spin)
+        layout.addRow(self.create_label_with_tooltip("刷新间隔(秒):", "每次循环后的暂停时间"), self.refresh_interval_spin)
+        layout.addRow(self.create_label_with_tooltip("随机偏差(秒):", "偏移量分数，如果设置为 <= 0 的值，则视为 0"), self.refresh_random_deviation_spin)
+        layout.addRow(self.create_label_with_tooltip("IAAA超时(秒):", "IAAA 客户端最长请求超时"), self.iaaa_timeout_spin)
+        layout.addRow(self.create_label_with_tooltip("选课超时(秒):", "elective 客户端最长请求超时"), self.elective_timeout_spin)
+        layout.addRow(self.create_label_with_tooltip("连接池大小:", "最多同时保持几个 elective 的有效会话（同一 IP 下最多为 5）"), self.pool_size_spin)
+        layout.addRow(self.create_label_with_tooltip("最大生命周期(秒):", "elvetive 客户端的存活时间，设置为 -1 则存活时间为无限长"), self.max_life_spin)
+        layout.addRow(self.create_label_with_tooltip("登录循环间隔(秒):", "IAAA 登录线程每回合结束后的等待时间"), self.login_loop_interval_spin)
+        layout.addRow(self.create_label_with_tooltip("打印互斥规则:", "是否在每次循环时打印完整的互斥规则列表"), self.print_mutex_check)
+        layout.addRow(self.create_label_with_tooltip("调试请求:", "是否打印请求细节"), self.debug_request_check)
+        layout.addRow(self.create_label_with_tooltip("调试转储:", "是否将重要接口的请求以日志的形式记录到本地（包括补退选页、提交选课等接口）"), self.debug_dump_check)
         
         widget.setLayout(layout)
         return widget
@@ -288,6 +324,7 @@ class ConfigEditor(QWidget):
         self.monitor_port_spin = QSpinBox()
         self.monitor_port_spin.setRange(1, 65535)
         
+        layout.addRow("提示",QLabel("如非专业人员，请勿修改此页配置！"))
         layout.addRow("监控主机:", self.monitor_host_edit)
         layout.addRow("监控端口:", self.monitor_port_spin)
         
@@ -307,30 +344,93 @@ class ConfigEditor(QWidget):
         self.minimum_interval_spin.setRange(0.1, 10.0)
         self.minimum_interval_spin.setSingleStep(0.1)
         
-        layout.addRow("禁用推送:", self.disable_push_check)
-        layout.addRow("微信Token:", self.wechat_token_edit)
-        layout.addRow("详细程度:", self.verbosity_spin)
-        layout.addRow("最小间隔(秒):", self.minimum_interval_spin)
+        layout.addRow(self.create_label_with_tooltip("禁用推送:", "是否拒绝接收微信提醒，1为拒收，0为接收提醒"), self.disable_push_check)
+        layout.addRow(self.create_label_with_tooltip("微信Token:", "您从公众号获得的唯一token"), self.wechat_token_edit)
+        layout.addRow(self.create_label_with_tooltip("详细程度:", "推送消息详细级别，1为推送选课成功、失败；2为在此基础上推送所有ERROR类型消息"), self.verbosity_spin)
+        layout.addRow(self.create_label_with_tooltip("最小间隔(秒):", "若消息产生时，距离上次成功发送不足这一时间，则取消发送。-1为不设置"), self.minimum_interval_spin)
         
         widget.setLayout(layout)
         return widget
 
     def create_apikey_tab(self):
-        """创建API密钥设置标签页"""
+        """创建验证码识别API密钥设置标签页"""
         widget = QWidget()
-        layout = QFormLayout()
+        main_layout = QVBoxLayout()
         
+        # 创建选项组
+        options_group = QGroupBox("验证码识别系统选择")
+        options_layout = QVBoxLayout()
+        
+        # 创建单选按钮
+        self.local_model_radio = QRadioButton("内置本地识别模型")
+        self.tt_platform_radio = QRadioButton("TT商用识别平台")
+        self.custom_system_radio = QRadioButton("自定义验证码识别系统")
+        
+        # 默认选择第一个选项
+        self.local_model_radio.setChecked(True)
+        
+        # 将单选按钮添加到布局
+        options_layout.addWidget(self.local_model_radio)
+        options_layout.addWidget(self.tt_platform_radio)
+        options_layout.addWidget(self.custom_system_radio)
+        options_group.setLayout(options_layout)
+        
+        # 创建堆叠窗口用于显示不同选项对应的内容
+        self.apikey_stacked_widget = QStackedWidget()
+        
+        # 本地识别模型页面
+        local_widget = QWidget()
+        local_layout = QVBoxLayout()
+        local_label = QLabel("使用内置本地识别模型，无需额外配置。\n本地模型正在开发中，请选择其他模型！")
+        local_layout.addWidget(local_label)
+        local_widget.setLayout(local_layout)
+        
+        # TT商用识别平台页面（原有的表单）
+        tt_widget = QWidget()
+        tt_layout = QFormLayout()
         self.username_edit = QLineEdit()
         self.apikey_password_edit = QLineEdit()
         self.apikey_password_edit.setEchoMode(QLineEdit.EchoMode.Password)
         self.recognition_type_edit = QLineEdit()
         
-        layout.addRow("用户名:", self.username_edit)
-        layout.addRow("密码:", self.apikey_password_edit)
-        layout.addRow("识别类型ID:", self.recognition_type_edit)
+        tt_layout.addRow("用户名:", self.username_edit)
+        tt_layout.addRow("密码:", self.apikey_password_edit)
+        tt_layout.addRow("识别类型ID:", self.recognition_type_edit)
+        tt_widget.setLayout(tt_layout)
         
-        widget.setLayout(layout)
+        # 自定义验证码识别系统页面
+        custom_widget = QWidget()
+        custom_layout = QVBoxLayout()
+        custom_label = QLabel("自定义验证码识别系统配置页面\n验证码识别接口正在开发中，请选择其他模型！")
+        custom_layout.addWidget(custom_label)
+        custom_widget.setLayout(custom_layout)
+        
+        # 将各个页面添加到堆叠窗口
+        self.apikey_stacked_widget.addWidget(local_widget)
+        self.apikey_stacked_widget.addWidget(tt_widget)
+        self.apikey_stacked_widget.addWidget(custom_widget)
+        
+        # 连接单选按钮的信号到槽函数
+        self.local_model_radio.toggled.connect(self.on_apikey_option_changed)
+        self.tt_platform_radio.toggled.connect(self.on_apikey_option_changed)
+        self.custom_system_radio.toggled.connect(self.on_apikey_option_changed)
+        
+        # 将组件添加到主布局
+        main_layout.addWidget(options_group)
+        main_layout.addWidget(self.apikey_stacked_widget)
+        main_layout.addStretch(1)  # 添加伸缩因子使内容顶部对齐
+        
+        widget.setLayout(main_layout)
         return widget
+
+    def on_apikey_option_changed(self):
+        """当API密钥选项改变时的槽函数"""
+        if self.local_model_radio.isChecked():
+            self.apikey_stacked_widget.setCurrentIndex(0)
+        elif self.tt_platform_radio.isChecked():
+            self.apikey_stacked_widget.setCurrentIndex(1)
+        elif self.custom_system_radio.isChecked():
+            self.apikey_stacked_widget.setCurrentIndex(2)
 
     def create_course_tab(self):
         """创建课程设置标签页"""
@@ -377,7 +477,7 @@ class ConfigEditor(QWidget):
         layout = QVBoxLayout()
         
         # 说明标签
-        info_label = QLabel("课程配置：每个课程包含ID、名称、班级号和学院信息")
+        info_label = QLabel("课程配置：每个课程包含ID、名称、班级号和学院信息。\n在此添加要刷取的课程")
         info_label.setStyleSheet("""
             QLabel {
                 background-color: #e3f2fd;
@@ -392,6 +492,7 @@ class ConfigEditor(QWidget):
         # 课程列表
         self.course_list_widget = QWidget()
         self.course_list_layout = QVBoxLayout()
+        self.course_list_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.course_list_widget.setLayout(self.course_list_layout)
         
         # 滚动区域
@@ -421,6 +522,7 @@ class ConfigEditor(QWidget):
         
         layout.addWidget(add_course_btn)
         
+        widget.setLayout(layout)
         return widget
 
     def create_mutex_list_tab(self):
@@ -429,7 +531,7 @@ class ConfigEditor(QWidget):
         layout = QVBoxLayout()
         
         # 说明标签
-        info_label = QLabel("互斥规则：指定哪些课程不能同时选择")
+        info_label = QLabel("互斥规则：指定哪些课程不能同时选择。同一个互斥规则下选上一门课后则不会再选择其他课程")
         info_label.setStyleSheet("""
             QLabel {
                 background-color: #fff3e0;
@@ -444,6 +546,7 @@ class ConfigEditor(QWidget):
         # 互斥规则列表
         self.mutex_list_widget = QWidget()
         self.mutex_list_layout = QVBoxLayout()
+        self.mutex_list_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.mutex_list_widget.setLayout(self.mutex_list_layout)
         
         # 滚动区域
@@ -472,7 +575,8 @@ class ConfigEditor(QWidget):
         """)
         
         layout.addWidget(add_mutex_btn)
-        
+
+        widget.setLayout(layout)
         return widget
 
     def create_delay_list_tab(self):
@@ -496,6 +600,7 @@ class ConfigEditor(QWidget):
         # 延迟规则列表
         self.delay_list_widget = QWidget()
         self.delay_list_layout = QVBoxLayout()
+        self.delay_list_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.delay_list_widget.setLayout(self.delay_list_layout)
         
         # 滚动区域
@@ -524,16 +629,18 @@ class ConfigEditor(QWidget):
         """)
         
         layout.addWidget(add_delay_btn)
-        
+
+        widget.setLayout(layout)
         return widget
 
     def create_course_item(self, course_id, course_name, class_no, school):
         """创建课程条目组件"""
         item_widget = QWidget()
+        item_widget.setFixedHeight(60)  # 固定高度
         item_layout = QHBoxLayout()
         
         # 课程信息标签
-        info_label = QLabel(f"{course_id}: {course_name} (班级: {class_no}, 学院: {school})")
+        info_label = QLabel(f"ID: {course_id}, 课程名: {course_name}, 班号: {class_no}, 开课院系: {school})")
         info_label.setStyleSheet("""
             QLabel {
                 background-color: #f5f5f5;
@@ -541,7 +648,6 @@ class ConfigEditor(QWidget):
                 border-radius: 3px;
                 padding: 8px;
                 margin: 2px;
-                flex: 1;
             }
         """)
         
@@ -589,6 +695,7 @@ class ConfigEditor(QWidget):
     def create_mutex_item(self, mutex_id, courses):
         """创建互斥规则条目组件"""
         item_widget = QWidget()
+        item_widget.setFixedHeight(60)  # 固定高度
         item_layout = QHBoxLayout()
         
         # 互斥规则信息标签
@@ -601,7 +708,6 @@ class ConfigEditor(QWidget):
                 border-radius: 3px;
                 padding: 8px;
                 margin: 2px;
-                flex: 1;
             }
         """)
         
@@ -649,6 +755,7 @@ class ConfigEditor(QWidget):
     def create_delay_item(self, delay_id, course_id, threshold):
         """创建延迟规则条目组件"""
         item_widget = QWidget()
+        item_widget.setFixedHeight(60)  # 固定高度
         item_layout = QHBoxLayout()
         
         # 延迟规则信息标签
@@ -660,7 +767,6 @@ class ConfigEditor(QWidget):
                 border-radius: 3px;
                 padding: 8px;
                 margin: 2px;
-                flex: 1;
             }
         """)
         
@@ -720,10 +826,10 @@ class ConfigEditor(QWidget):
         class_no_edit = QLineEdit()
         school_edit = QLineEdit()
         
-        layout.addRow("课程ID:", course_id_edit)
-        layout.addRow("课程名称:", course_name_edit)
-        layout.addRow("班级号:", class_no_edit)
-        layout.addRow("学院:", school_edit)
+        layout.addRow("课程ID（自定义，用于后续规则识别）:", course_id_edit)
+        layout.addRow("课程名称（须与选课网完全一致）:", course_name_edit)
+        layout.addRow("班级号（数字，须与选课网一致）:", class_no_edit)
+        layout.addRow("开课院系（须与选课网完全一致）:", school_edit)
         
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
@@ -741,21 +847,24 @@ class ConfigEditor(QWidget):
             school = school_edit.text().strip()
             
             if course_id and course_name and class_no and school:
-                # 创建课程条目
-                course_item = self.create_course_item(course_id, course_name, class_no, school)
-                self.course_list_layout.addWidget(course_item)
-                
-                # 更新统计信息
-                self.update_config_stats()
-                
-                # 保存到内部数据结构
-                if not hasattr(self, 'courses_data'):
-                    self.courses_data = {}
-                self.courses_data[course_id] = {
-                    'name': course_name,
-                    'class': class_no,
-                    'school': school
-                }
+                if course_id not in self.courses_data.keys():
+                    # 创建课程条目
+                    course_item = self.create_course_item(course_id, course_name, class_no, school)
+                    self.course_list_layout.addWidget(course_item)
+                    
+                    # 更新统计信息
+                    self.update_config_stats()
+                    
+                    # 保存到内部数据结构
+                    if not hasattr(self, 'courses_data'):
+                        self.courses_data = {}
+                    self.courses_data[course_id] = {
+                        'name': course_name,
+                        'class': class_no,
+                        'school': school
+                    }
+                else:
+                    QMessageBox.warning(self, "警告", "该课程ID已被使用！请更换其他ID")
             else:
                 QMessageBox.warning(self, "警告", "请填写所有字段！")
 
@@ -804,17 +913,20 @@ class ConfigEditor(QWidget):
             selected_courses = [item.text() for item in course_list.selectedItems()]
             
             if rule_id and len(selected_courses) >= 2:
-                # 创建互斥规则条目
-                mutex_item = self.create_mutex_item(rule_id, selected_courses)
-                self.mutex_list_layout.addWidget(mutex_item)
-                
-                # 更新统计信息
-                self.update_config_stats()
-                
-                # 保存到内部数据结构
-                if not hasattr(self, 'mutex_data'):
-                    self.mutex_data = {}
-                self.mutex_data[rule_id] = selected_courses
+                if rule_id not in self.mutex_data.keys():
+                    # 创建互斥规则条目
+                    mutex_item = self.create_mutex_item(rule_id, selected_courses)
+                    self.mutex_list_layout.addWidget(mutex_item)
+                    
+                    # 更新统计信息
+                    self.update_config_stats()
+                    
+                    # 保存到内部数据结构
+                    if not hasattr(self, 'mutex_data'):
+                        self.mutex_data = {}
+                    self.mutex_data[rule_id] = selected_courses
+                else:
+                    QMessageBox.warning(self, "警告", "该互斥规则ID已被使用！请更换其他ID")
             else:
                 QMessageBox.warning(self, "警告", "请填写规则ID并选择至少2个课程！")
 
@@ -858,20 +970,23 @@ class ConfigEditor(QWidget):
             threshold = threshold_spin.value()
             
             if delay_id and course_id:
-                # 创建延迟规则条目
-                delay_item = self.create_delay_item(delay_id, course_id, threshold)
-                self.delay_list_layout.addWidget(delay_item)
-                
-                # 更新统计信息
-                self.update_config_stats()
-                
-                # 保存到内部数据结构
-                if not hasattr(self, 'delay_data'):
-                    self.delay_data = {}
-                self.delay_data[delay_id] = {
-                    'course': course_id,
-                    'threshold': threshold
-                }
+                if delay_id not in self.delay_data.keys():
+                    # 创建延迟规则条目
+                    delay_item = self.create_delay_item(delay_id, course_id, threshold)
+                    self.delay_list_layout.addWidget(delay_item)
+                    
+                    # 更新统计信息
+                    self.update_config_stats()
+                    
+                    # 保存到内部数据结构
+                    if not hasattr(self, 'delay_data'):
+                        self.delay_data = {}
+                    self.delay_data[delay_id] = {
+                        'course': course_id,
+                        'threshold': threshold
+                    }
+                else:
+                    QMessageBox.warning(self, "警告", "该延迟规则ID已被使用！请更换其他ID")
             else:
                 QMessageBox.warning(self, "警告", "请填写所有字段！")
 
@@ -1016,24 +1131,126 @@ class ConfigEditor(QWidget):
                 QMessageBox.warning(self, "警告", "请填写所有字段！")
 
     def delete_course(self, course_id):
-        """删除课程"""
+        """删除课程并同步清理相关规则"""
+        # 收集受影响的规则
+        affected_mutex_rules = self.collect_affected_mutex_rules(course_id)
+        affected_delay_rules = self.collect_affected_delay_rules(course_id)
+        
+        # 构建警告信息
+        warning_message = f"确定要删除课程 {course_id} 吗？"
+        
+        if affected_mutex_rules or affected_delay_rules:
+            warning_message += "\n\n删除此课程将同时删除以下相关规则："
+            
+            if affected_mutex_rules:
+                warning_message += f"\n\n互斥规则:\n（删除该课程后该互斥规则内课程数量<2）" + "\n".join(affected_mutex_rules)
+                
+            if affected_delay_rules:
+                warning_message += f"\n\n延迟规则:\n" + "\n".join(affected_delay_rules)
+        
+        # 显示确认对话框
         reply = QMessageBox.question(
             self, "确认删除", 
-            f"确定要删除课程 {course_id} 吗？",
+            warning_message,
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No
         )
         
         if reply == QMessageBox.StandardButton.Yes:
-            # 从数据结构中删除
+            # 从数据结构中删除课程
             if course_id in self.courses_data:
                 del self.courses_data[course_id]
             
-            # 从界面中删除条目
+            # 从界面中删除课程条目
             self.remove_course_item(course_id)
+            
+            # 清理依赖此课程的互斥规则
+            self.cleanup_mutex_rules(course_id)
+            
+            # 清理依赖此课程的延迟规则
+            self.cleanup_delay_rules(course_id)
             
             # 更新统计信息
             self.update_config_stats()
+            
+            QMessageBox.information(self, "成功", f"课程 {course_id} 及相关规则已删除！")
+
+    def collect_affected_mutex_rules(self, course_id):
+        """收集依赖该课程的互斥规则"""
+        affected_rules = []
+        
+        # 遍历所有互斥规则
+        for mutex_id, courses in self.mutex_data.items():
+            # 如果课程在该互斥规则中
+            if course_id in courses:
+                affected_rules.append(f"- 互斥规则 {mutex_id} (包含课程: {course_id})")
+        
+        return affected_rules
+
+    def collect_affected_delay_rules(self, course_id):
+        """收集依赖该课程的延迟规则"""
+        affected_rules = []
+        
+        # 遍历所有延迟规则
+        for delay_id, rule_data in self.delay_data.items():
+            # 如果规则依赖该课程
+            if 'course' in rule_data and rule_data['course'] == course_id:
+                affected_rules.append(f"- 延迟规则 {delay_id} (依赖课程: {course_id})")
+        
+        return affected_rules
+
+    def cleanup_mutex_rules(self, course_id):
+        """清理依赖该课程的互斥规则"""
+        # 收集需要删除的互斥规则ID
+        mutex_ids_to_remove = []
+        
+        # 收集需要更新的互斥规则（移除课程引用）
+        mutex_to_update = {}
+        
+        # 遍历所有互斥规则
+        for mutex_id, courses in self.mutex_data.items():
+            # 如果课程在该互斥规则中
+            if course_id in courses:
+                # 创建一个不包含该课程的新课程列表
+                new_courses = [c for c in courses if c != course_id]
+                
+                # 如果移除后课程数少于2，则删除该规则
+                if len(new_courses) < 2:
+                    mutex_ids_to_remove.append(mutex_id)
+                else:
+                    # 否则更新规则
+                    mutex_to_update[mutex_id] = new_courses
+        
+        # 删除无效的互斥规则
+        for mutex_id in mutex_ids_to_remove:
+            if mutex_id in self.mutex_data:
+                del self.mutex_data[mutex_id]
+            # 从界面删除条目
+            self.remove_mutex_item(mutex_id)
+        
+        # 更新需要修改的互斥规则
+        for mutex_id, new_courses in mutex_to_update.items():
+            self.mutex_data[mutex_id] = new_courses
+            # 刷新界面显示
+            self.refresh_mutex_item(mutex_id)
+
+    def cleanup_delay_rules(self, course_id):
+        """清理依赖该课程的延迟规则"""
+        # 收集需要删除的延迟规则ID
+        delay_ids_to_remove = []
+        
+        # 遍历所有延迟规则
+        for delay_id, rule_data in self.delay_data.items():
+            # 如果规则依赖该课程
+            if 'course' in rule_data and rule_data['course'] == course_id:
+                delay_ids_to_remove.append(delay_id)
+        
+        # 删除规则
+        for delay_id in delay_ids_to_remove:
+            if delay_id in self.delay_data:
+                del self.delay_data[delay_id]
+            # 从界面删除条目
+            self.remove_delay_item(delay_id)
 
     def edit_mutex_rule(self, mutex_id, courses):
         """编辑互斥规则"""
@@ -1220,41 +1437,53 @@ class ConfigEditor(QWidget):
     def remove_course_item(self, course_id):
         """从界面中删除课程条目"""
         # 遍历布局找到对应的条目并删除
-        for i in range(self.course_list_layout.count()):
-            child = self.course_list_layout.itemAt(i)
-            if child.widget():
-                widget = child.widget()
-                # 查找包含课程ID的标签
-                for child_widget in widget.findChildren(QLabel):
-                    if course_id in child_widget.text():
-                        widget.deleteLater()
-                        self.course_list_layout.removeItem(child)
-                        break
+        i = 0
+        while i < self.course_list_layout.count():
+            layout_item = self.course_list_layout.itemAt(i)
+            if layout_item is not None:
+                widget = layout_item.widget()
+                if widget is not None:
+                    # 查找包含课程ID的标签
+                    labels = widget.findChildren(QLabel)
+                    for label in labels:
+                        if course_id in label.text():
+                            # 删除小部件并移除布局项
+                            widget.deleteLater()
+                            self.course_list_layout.removeItem(layout_item)
+                            # 因为移除了一个元素，索引不变，继续检查当前索引
+                            continue
+            i += 1
 
     def remove_mutex_item(self, mutex_id):
         """从界面中删除互斥规则条目"""
-        # 遍历布局找到对应的条目并删除
-        for i in range(self.mutex_list_layout.count()):
-            child = self.mutex_list_layout.itemAt(i)
-            if child.widget():
-                widget = child.widget()
-                # 查找包含互斥规则ID的标签
-                for child_widget in widget.findChildren(QLabel):
-                    if mutex_id in child_widget.text():
-                        widget.deleteLater()
-                        self.mutex_list_layout.removeItem(child)
-                        break
+        i = 0
+        while i < self.mutex_list_layout.count():
+            layout_item = self.mutex_list_layout.itemAt(i)
+            if layout_item is not None:
+                widget = layout_item.widget()
+                if widget is not None:
+                    # 查找包含互斥规则ID的标签
+                    labels = widget.findChildren(QLabel)
+                    for label in labels:
+                        if mutex_id in label.text():
+                            widget.deleteLater()
+                            self.mutex_list_layout.removeItem(layout_item)
+                            continue
+            i += 1
 
     def remove_delay_item(self, delay_id):
         """从界面中删除延迟规则条目"""
-        # 遍历布局找到对应的条目并删除
-        for i in range(self.delay_list_layout.count()):
-            child = self.delay_list_layout.itemAt(i)
-            if child.widget():
-                widget = child.widget()
-                # 查找包含延迟规则ID的标签
-                for child_widget in widget.findChildren(QLabel):
-                    if delay_id in child_widget.text():
-                        widget.deleteLater()
-                        self.delay_list_layout.removeItem(child)
-                        break
+        i = 0
+        while i < self.delay_list_layout.count():
+            layout_item = self.delay_list_layout.itemAt(i)
+            if layout_item is not None:
+                widget = layout_item.widget()
+                if widget is not None:
+                    # 查找包含延迟规则ID的标签
+                    labels = widget.findChildren(QLabel)
+                    for label in labels:
+                        if delay_id in label.text():
+                            widget.deleteLater()
+                            self.delay_list_layout.removeItem(layout_item)
+                            continue
+            i += 1
