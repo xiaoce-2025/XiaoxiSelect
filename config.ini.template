@@ -1,0 +1,45 @@
+[user]
+student_id = 学号
+password = 密码
+dual_degree = false
+identity = bzx
+
+[client]
+supply_cancel_page = 1
+refresh_interval = 1.0
+random_deviation = 0.0
+iaaa_client_timeout = 10.0
+elective_client_timeout = 10.0
+elective_client_pool_size = 5
+elective_client_max_life = 100
+login_loop_interval = 1.0
+print_mutex_rules = false
+debug_print_request = false
+debug_dump_request = false
+
+[monitor]
+host = localhost
+port = 5000
+
+[notification]
+disable_push = false
+token = 
+verbosity = 1
+minimum_interval = 1.0
+
+[course:CS001]
+name = 计算机科学导论
+class = 01
+school = 信息科学技术学院
+
+[course:CS002]
+name = 程序设计基础
+class = 02
+school = 信息科学技术学院
+
+[mutex:mutex1]
+courses = CS001,CS002
+
+[delay:delay1]
+course = CS001
+threshold = 10

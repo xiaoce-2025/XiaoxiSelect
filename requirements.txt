@@ -4,3 +4,4 @@ lxml
 flask
 numpy
 Werkzeug==2.2.2
+PyQt6
