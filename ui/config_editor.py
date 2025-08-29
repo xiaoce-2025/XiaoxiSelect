@@ -90,11 +90,14 @@ class ConfigEditor(QWidget):
             }
         """)
 
+        # 已启用自动保存，手动保存可弃用
+        save_btn.hide()
+
         layout.addWidget(tab_widget)
         layout.addWidget(save_btn)
 
         # 添加保存状态标签
-        self.save_status_label = QLabel("所有更改已自动保存")
+        self.save_status_label = QLabel("成功加载全部配置")
         self.save_status_label.setStyleSheet("""
             QLabel {
                 color: #4CAF50;
@@ -194,6 +197,9 @@ class ConfigEditor(QWidget):
             # 更新统计信息
             self.update_config_stats()
 
+            # 连接自动保存信号
+            self.setup_autosave_connections()
+
         except Exception as e:
             if self.log_display:
                 self.log_display.add_log(f"加载配置文件失败: {str(e)}")
@@ -276,7 +282,7 @@ class ConfigEditor(QWidget):
 
             # 保存配置
             self.config_manager.save_config(config_data)
-            self.update_save_status("非课程设置已自动保存")
+            self.update_save_status("系统设置已自动保存")
 
         except Exception as e:
             self.update_save_status(f"自动保存失败: {str(e)}", error=True)
@@ -655,7 +661,9 @@ class ConfigEditor(QWidget):
         widget = QWidget()
         layout = QVBoxLayout()
 
-        # 配置统计信息
+        # 状态栏和清空按钮的水平布局
+        stats_layout = QHBoxLayout()
+        
         self.config_stats_label = QLabel("配置统计：0 个课程，0 个互斥规则，0 个延迟规则")
         self.config_stats_label.setStyleSheet("""
             QLabel {
@@ -667,7 +675,30 @@ class ConfigEditor(QWidget):
                 font-size: 12px;
             }
         """)
-        layout.addWidget(self.config_stats_label)
+        stats_layout.addWidget(self.config_stats_label)
+        
+        # 添加清空配置按钮
+        clear_btn = QPushButton("删除所有课程配置")
+        clear_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #f44336;
+                color: white;
+                border: none;
+                padding: 8px;
+                margin: 5px;
+                border-radius: 5px;
+                font-size: 12px;
+                max-width: 120px;
+            }
+            QPushButton:hover {
+                background-color: #d32f2f;
+            }
+        """)
+        clear_btn.setToolTip("清空所有课程、互斥规则和延迟规则")
+        clear_btn.clicked.connect(self.clear_all_course_configs)
+        stats_layout.addWidget(clear_btn)
+        
+        layout.addLayout(stats_layout)  # 添加水平布局
 
         # 创建标签页
         course_tab_widget = QTabWidget()
@@ -1427,6 +1458,7 @@ class ConfigEditor(QWidget):
                 self.log_display.add_log(f"加载课程配置失败: {str(e)}")
             QMessageBox.warning(self, "警告", f"加载课程配置失败: {str(e)}")
 
+    # 清空课程界面的所有条目（只是清除显示，不涉及删数据！）
     def clear_all_items(self):
         """清空所有条目"""
         # 清空课程列表
@@ -1447,7 +1479,33 @@ class ConfigEditor(QWidget):
             if child.widget():
                 child.widget().deleteLater()
 
-        self.save_course_configs()
+    # 清空课程相关配置（清除显示+清空数据）
+    def clear_all_course_configs(self):
+        """清空所有课程相关配置"""
+        # 确认对话框
+        reply = QMessageBox.question(
+            self, "确认清空",
+            "确定要清空所有课程、互斥规则和延迟规则吗？此操作不可恢复！",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+
+        if reply == QMessageBox.StandardButton.Yes:
+            # 清空数据结构
+            self.courses_data = {}
+            self.mutex_data = {}
+            self.delay_data = {}
+            
+            # 清空界面
+            self.clear_all_items()
+            
+            # 保存空配置
+            self.save_course_configs()
+            
+            # 更新统计信息
+            self.update_config_stats()
+            
+            QMessageBox.information(self, "成功", "已清空所有课程配置！")
 
     def update_config_stats(self):
         """更新配置统计信息"""
@@ -1529,7 +1587,7 @@ class ConfigEditor(QWidget):
             warning_message += "\n\n删除此课程将同时删除以下相关规则："
 
             if affected_mutex_rules:
-                warning_message += f"\n\n互斥规则:\n（删除该课程后该互斥规则内课程数量<2）" + \
+                warning_message += f"\n\n互斥规则:\n（删除该课程后该互斥规则内课程数量<2）\n" + \
                     "\n".join(affected_mutex_rules)
 
             if affected_delay_rules:
