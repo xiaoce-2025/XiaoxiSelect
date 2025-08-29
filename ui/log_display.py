@@ -4,9 +4,9 @@
 
 import logging
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QTextEdit, QPushButton, 
-                             QLabel, QHBoxLayout, QFileDialog, QMessageBox)
+                             QLabel, QHBoxLayout, QFileDialog, QMessageBox, )
 from PyQt6.QtCore import pyqtSignal
-from PyQt6.QtGui import QFont, QTextCursor
+from PyQt6.QtGui import QFont, QTextCursor, QColor
 from handlers.gui_log_handler import GUILogHandler
 
 class LogDisplay(QWidget):
@@ -81,23 +81,53 @@ class LogDisplay(QWidget):
         # 如果消息已经包含时间戳，直接显示
         if message.startswith('[') and ':' in message:
             # 这是来自日志处理器的格式化消息
-            self.log_text.append(message)
+            formatted_msg = message
         else:
             # 这是手动添加的消息，添加时间戳
             from datetime import datetime
             timestamp = datetime.now().strftime("%H:%M:%S")
-            self.log_text.append(f"[{timestamp}][SYSTEM] {message}")
+            formatted_msg = f"[{timestamp}][SYSTEM] {message}"
         
-        # 自动滚动到底部
+        # 创建文本光标并定位到文档末尾
         cursor = self.log_text.textCursor()
         cursor.movePosition(QTextCursor.MoveOperation.End)
-        self.log_text.setTextCursor(cursor)
         
-        # 限制日志行数，避免内存占用过大
+        # 根据关键字设置文本颜色
+        text_format = cursor.charFormat()
+        
+        # 关键字检测
+        if "is ELECTED" in formatted_msg.upper():
+            text_format.setForeground(QColor("red"))
+        elif "is AVAILABLE" in formatted_msg.upper():
+            text_format.setForeground(QColor("blue"))
+        elif "[DEBUG]" in formatted_msg.upper():
+            text_format.setForeground(QColor("gray"))
+        elif "[INFO]" in formatted_msg.upper():
+            text_format.setForeground(QColor("black"))
+        elif "[WARNING]" in formatted_msg.upper():
+            text_format.setForeground(QColor("orange"))
+        elif "[ERROR]" in formatted_msg.upper():
+            text_format.setForeground(QColor("red"))
+        elif "[CRITICAL]" in formatted_msg.upper():
+            text_format.setForeground(QColor("purple"))
+        elif "[SYSTEM]" in formatted_msg.upper():
+            text_format.setForeground(QColor("blue"))
+        else:
+            text_format.setForeground(QColor("black"))
+        
+        # 插入带格式的文本
+        cursor.insertText(formatted_msg + '\n', text_format)
+        
+        # 自动滚动到底部
+        self.log_text.setTextCursor(cursor)
+        self.log_text.ensureCursorVisible()
+        
+        # 限制日志行数
         max_lines = 1000
-        lines = self.log_text.toPlainText().split('\n')
-        if len(lines) > max_lines:
-            self.log_text.setPlainText('\n'.join(lines[-max_lines:]))
+        if self.log_text.document().blockCount() > max_lines:
+            cursor.setPosition(0)
+            cursor.select(QTextCursor.SelectionType.BlockUnderCursor)
+            cursor.removeSelectedText()
     
     def clear_log(self):
         """清空日志"""

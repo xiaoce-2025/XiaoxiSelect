@@ -606,7 +606,7 @@ class ConfigEditor(QWidget):
         local_layout.addWidget(local_label)
         local_widget.setLayout(local_layout)
 
-        # TT商用识别平台页面（原有的表单）
+        # TT商用识别平台页面
         tt_widget = QWidget()
         tt_layout = QFormLayout()
         self.username_edit = QLineEdit()
@@ -614,10 +614,18 @@ class ConfigEditor(QWidget):
         self.apikey_password_edit.setEchoMode(QLineEdit.EchoMode.Password)
         self.recognition_type_edit = QLineEdit()
 
+        # TT识图api表单
         tt_layout.addRow("用户名:", self.username_edit)
         tt_layout.addRow("密码:", self.apikey_password_edit)
         tt_layout.addRow("识别类型ID:", self.recognition_type_edit)
         tt_widget.setLayout(tt_layout)
+        # 占位空行
+        tt_layout.addRow(QLabel())
+        # 添加超链接（使用QLabel实现）
+        api_link = QLabel("<a href=\"https://www.ttshitu.com/user/password.html\">点击前往获取TT识图API↗</a>")
+        api_link.setOpenExternalLinks(True)  # 允许打开外部链接
+        api_link.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)  # 启用链接交互
+        tt_layout.addRow(api_link)
 
         # 自定义验证码识别系统页面
         custom_widget = QWidget()
@@ -1182,8 +1190,8 @@ class ConfigEditor(QWidget):
 
         # 创建表格
         table = QTableWidget()
-        table.setColumnCount(4)
-        table.setHorizontalHeaderLabels(["课程ID", "课程名称", "班级号", "开课院系"])
+        table.setColumnCount(5)
+        table.setHorizontalHeaderLabels(["课程ID", "课程名称", "班级号", "开课院系", "操作"])
         table.setRowCount(len(matches))
 
         # 填充表格数据
@@ -1195,6 +1203,25 @@ class ConfigEditor(QWidget):
             table.setItem(row, 1, QTableWidgetItem(course_name))
             table.setItem(row, 2, QTableWidgetItem(class_no))
             table.setItem(row, 3, QTableWidgetItem(school))
+
+            # 添加删除按钮
+            delete_btn = QPushButton("删除")
+            delete_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #f44336;
+                    color: white;
+                    border: none;
+                    padding: 4px;
+                    border-radius: 3px;
+                    min-width: 60px;
+                }
+                QPushButton:hover {
+                    background-color: #d32f2f;
+                }
+            """)
+            delete_btn.setProperty("row", row)  # 存储行号
+            delete_btn.clicked.connect(lambda _, r=row: self.delete_table_row(table, r))
+            table.setCellWidget(row, 4, delete_btn)
 
         table.resizeColumnsToContents()
         layout.addWidget(table)
@@ -1250,6 +1277,34 @@ class ConfigEditor(QWidget):
             if duplicate_ids:
                 msg += f"\n以下课程ID已存在，未重复添加: {', '.join(duplicate_ids)}"
             QMessageBox.information(self, "导入结果", msg)
+
+    # 快捷添加中的行删除功能
+    def delete_table_row(self, table, row):
+        """删除表格中的指定行"""
+        # 确认删除
+        reply = QMessageBox.question(
+            self, "确认删除",
+            f"确定要删除第{row+1}行的课程吗？",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            # 删除行
+            table.removeRow(row)
+            
+            # 更新按钮的行号属性
+            for r in range(table.rowCount()):
+                if r >= row:
+                    btn = table.cellWidget(r, 4)
+                    if btn:
+                        # 断开旧连接
+                        try:
+                            btn.clicked.disconnect()
+                        except:
+                            pass
+                        # 重新连接新行号
+                        btn.clicked.connect(lambda _, row=row, table=table: self.delete_table_row(table, row))
 
     def generate_course_id(self, course_name, class_no):
         """生成默认课程ID（中文取前2字拼音首字母+班级号）"""

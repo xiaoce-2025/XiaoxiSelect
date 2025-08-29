@@ -329,7 +329,7 @@ class MainWindow(QMainWindow):
                 
                 # 验证清理是否成功
                 if not verify_clean_state(self.environ):
-                    raise Exception("全局状态清理失败，无法启动程序")
+                    raise Exception("全局状态清理失败，无法启动程序！")
                 
                 # 使用cli的启动逻辑
                 from autoelective.cli import create_default_parser, create_default_threads, setup_default_environ
