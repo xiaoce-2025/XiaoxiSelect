@@ -621,7 +621,7 @@ class ConfigEditor(QWidget):
         tt_widget.setLayout(tt_layout)
         # 占位空行
         tt_layout.addRow(QLabel())
-        # 添加超链接（使用QLabel实现）
+        # TT识图API获取指引
         api_link = QLabel("<a href=\"https://www.ttshitu.com/user/password.html\">点击前往获取TT识图API↗</a>")
         api_link.setOpenExternalLinks(True)  # 允许打开外部链接
         api_link.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)  # 启用链接交互
