@@ -1,3 +1,9 @@
+"""
+@Author : xiaoce2025
+@File   : main_window.py
+@Date   : 2025-08-29
+"""
+
 """主窗口类"""
 
 import logging
@@ -332,7 +338,7 @@ class MainWindow(QMainWindow):
                     raise Exception("全局状态清理失败，无法启动程序！")
                 
                 # 使用cli的启动逻辑
-                from autoelective.cli import create_default_parser, create_default_threads, setup_default_environ
+                from autoelective.cli import create_default_parser, create_default_threads_reload, setup_default_environ
                 
                 # 创建解析器并设置默认选项
                 parser = create_default_parser()
@@ -345,7 +351,7 @@ class MainWindow(QMainWindow):
                 setup_default_environ(options, args, self.environ)
                 
                 # 创建线程
-                self.threads = create_default_threads(options, args, self.environ)
+                self.threads = create_default_threads_reload(options, args, self.environ)
                 
                 # 启动线程
                 for thread in self.threads:

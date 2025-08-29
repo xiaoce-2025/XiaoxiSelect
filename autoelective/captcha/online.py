@@ -1,3 +1,9 @@
+"""
+@Author : xiaoce2025
+@File   : online.py
+@Date   : 2025-08-29
+"""
+
 import base64
 from io import BytesIO
 import json
@@ -14,14 +20,26 @@ class APIConfig(object):
     _DEFAULT_CONFIG_PATH = '../apikey.json'
 
     def __init__(self, path=_DEFAULT_CONFIG_PATH):
-        with open(get_abs_path(path), 'r') as handle:
-            self._apikey = json.load(handle)
+        # 存储配置文件路径
+        self.path = get_abs_path(path)
+        # 初始化加载配置
+        self.reload()
+        
+    def reload(self):
+        """重新加载配置文件"""
         try:
-            assert 'username' in self._apikey.keys() and 'password' in self._apikey.keys()
-            assert 'RecognitionTypeid' in self._apikey.keys()
+            with open(self.path, 'r') as handle:
+                self._apikey = json.load(handle)
+            # 验证配置完整性
+            assert 'username' in self._apikey.keys(), "Missing 'username' in apikey"
+            assert 'password' in self._apikey.keys(), "Missing 'password' in apikey"
+            assert 'RecognitionTypeid' in self._apikey.keys(), "Missing 'RecognitionTypeid' in apikey"
+        except FileNotFoundError:
+            raise OperationFailedError(f"API config file not found at {self.path}")
+        except json.JSONDecodeError:
+            raise OperationFailedError(f"Invalid JSON format in {self.path}")
         except AssertionError as e:
-            print("Check your apikey.json for necessary key")
-            exit(-1)
+            raise OperationFailedError(f"API config validation failed: {str(e)}")
 
     @property
     def uname(self):
