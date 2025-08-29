@@ -18,6 +18,7 @@ def main():
     
     # 创建主窗口
     window = MainWindow()
+    window.showMaximized()
     window.show()
     
     # 运行应用程序

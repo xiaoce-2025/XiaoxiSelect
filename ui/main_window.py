@@ -374,7 +374,7 @@ class MainWindow(QMainWindow):
                 self.start_btn.setEnabled(False)
                 self.stop_btn.setEnabled(True)
                 
-                self.log_display.add_log("自动选课程序已启动")
+                self.log_display.add_log("选课任务正在执行...")
                 if options.with_monitor:
                     self.log_display.add_log("监控功能已启用")
                 
@@ -447,7 +447,7 @@ class MainWindow(QMainWindow):
                 # 清理环境状态
                 cleanup_environment(self.environ)
                 
-                self.log_display.add_log("自动选课程序已停止")
+                self.log_display.add_log("选课任务已终止")
                 
         except Exception as e:
             QMessageBox.critical(self, "错误", f"停止失败: {str(e)}")

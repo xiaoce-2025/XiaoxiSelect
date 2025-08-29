@@ -6,15 +6,16 @@ import os
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTabWidget,
                              QPushButton, QLabel, QLineEdit, QSpinBox,
                              QDoubleSpinBox, QCheckBox, QComboBox, QGroupBox,
-                             QFormLayout, QMessageBox, QScrollArea, QFrame, QRadioButton, 
+                             QFormLayout, QMessageBox, QScrollArea, QFrame, QRadioButton,
                              QStackedWidget, QDialog, QTableWidget, QTableWidgetItem,
                              QVBoxLayout, QDialogButtonBox, QListWidgetItem)
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 from config.config_manager import ConfigManager
 # from ui.components.QTabBar import VerticalTabBar
 from PyQt6.QtGui import QIcon, QPixmap
 import re
 import pyperclip  # 用于访问剪贴板
+from datetime import datetime
 
 
 class ConfigEditor(QWidget):
@@ -29,6 +30,10 @@ class ConfigEditor(QWidget):
         self.courses_data = {}
         self.mutex_data = {}
         self.delay_data = {}
+
+        # 自动保存相关变量
+        self.last_save_time = None
+        self.autosave_enabled = True
 
         self.init_ui()
         self.load_configs()
@@ -87,6 +92,18 @@ class ConfigEditor(QWidget):
 
         layout.addWidget(tab_widget)
         layout.addWidget(save_btn)
+
+        # 添加保存状态标签
+        self.save_status_label = QLabel("所有更改已自动保存")
+        self.save_status_label.setStyleSheet("""
+            QLabel {
+                color: #4CAF50;
+                font-size: 12px;
+                padding: 5px;
+            }
+        """)
+        layout.addWidget(self.save_status_label)
+
         self.setLayout(layout)
 
     # 加载配置
@@ -182,77 +199,230 @@ class ConfigEditor(QWidget):
                 self.log_display.add_log(f"加载配置文件失败: {str(e)}")
             QMessageBox.warning(self, "警告", f"加载配置文件失败: {str(e)}")
 
-    def save_all_configs(self):
-        """保存所有配置文件"""
+    def setup_autosave_connections(self):
+        """设置自动保存的信号连接"""
+        # 用户设置
+        self.student_id_edit.editingFinished.connect(
+            self.save_non_course_configs)
+        self.password_edit.editingFinished.connect(
+            self.save_non_course_configs)
+        self.dual_degree_check.stateChanged.connect(
+            self.save_non_course_configs)
+        self.identity_combo.currentIndexChanged.connect(
+            self.save_non_course_configs)
+
+        # 客户端设置
+        self.supply_cancel_page_spin.valueChanged.connect(
+            self.save_non_course_configs)
+        self.refresh_interval_spin.valueChanged.connect(
+            self.save_non_course_configs)
+        self.refresh_random_deviation_spin.valueChanged.connect(
+            self.save_non_course_configs)
+        self.iaaa_timeout_spin.valueChanged.connect(
+            self.save_non_course_configs)
+        self.elective_timeout_spin.valueChanged.connect(
+            self.save_non_course_configs)
+        self.pool_size_spin.valueChanged.connect(self.save_non_course_configs)
+        self.max_life_spin.valueChanged.connect(self.save_non_course_configs)
+        self.login_loop_interval_spin.valueChanged.connect(
+            self.save_non_course_configs)
+        self.print_mutex_check.stateChanged.connect(
+            self.save_non_course_configs)
+        self.debug_request_check.stateChanged.connect(
+            self.save_non_course_configs)
+        self.debug_dump_check.stateChanged.connect(
+            self.save_non_course_configs)
+
+        # 监控设置
+        self.monitor_host_edit.editingFinished.connect(
+            self.save_non_course_configs)
+        self.monitor_port_spin.valueChanged.connect(
+            self.save_non_course_configs)
+
+        # 通知设置
+        self.disable_push_check.stateChanged.connect(
+            self.save_non_course_configs)
+        self.wechat_token_edit.editingFinished.connect(
+            self.save_non_course_configs)
+        self.verbosity_spin.valueChanged.connect(self.save_non_course_configs)
+        self.minimum_interval_spin.valueChanged.connect(
+            self.save_non_course_configs)
+
+        # 验证码识别设置
+        self.username_edit.editingFinished.connect(
+            self.save_non_course_configs)
+        self.apikey_password_edit.editingFinished.connect(
+            self.save_non_course_configs)
+        self.recognition_type_edit.editingFinished.connect(
+            self.save_non_course_configs)
+        self.local_model_radio.toggled.connect(self.save_non_course_configs)
+        self.tt_platform_radio.toggled.connect(self.save_non_course_configs)
+        self.custom_system_radio.toggled.connect(self.save_non_course_configs)
+
+    def save_non_course_configs(self):
+        """保存非课程相关配置"""
+        if not self.autosave_enabled:
+            return
+
         try:
-            config_data = {}
+            config_data = self.config_manager.load_config()
 
-            # 用户设置
-            config_data['user'] = {
-                'student_id': self.student_id_edit.text(),
-                'password': self.password_edit.text(),
-                'dual_degree': self.dual_degree_check.isChecked(),
-                'identity': self.identity_combo.currentText()
-            }
+            # 更新非课程配置部分
+            config_data['user'] = self.get_user_config()
+            config_data['client'] = self.get_client_config()
+            config_data['monitor'] = self.get_monitor_config()
+            config_data['notification'] = self.get_notification_config()
+            config_data['apikey'] = self.get_apikey_config()
 
-            # 客户端设置
-            config_data['client'] = {
-                'supply_cancel_page': self.supply_cancel_page_spin.value(),
-                'refresh_interval': self.refresh_interval_spin.value(),
-                'random_deviation': self.refresh_random_deviation_spin.value(),
-                'iaaa_client_timeout': self.iaaa_timeout_spin.value(),
-                'elective_client_timeout': self.elective_timeout_spin.value(),
-                'elective_client_pool_size': self.pool_size_spin.value(),
-                'elective_client_max_life': self.max_life_spin.value(),
-                'login_loop_interval': self.login_loop_interval_spin.value(),
-                'print_mutex_rules': self.print_mutex_check.isChecked(),
-                'debug_print_request': self.debug_request_check.isChecked(),
-                'debug_dump_request': self.debug_dump_check.isChecked()
-            }
+            # 保存配置
+            self.config_manager.save_config(config_data)
+            self.update_save_status("非课程设置已自动保存")
 
-            # 监控设置
-            config_data['monitor'] = {
-                'host': self.monitor_host_edit.text(),
-                'port': self.monitor_port_spin.value()
-            }
+        except Exception as e:
+            self.update_save_status(f"自动保存失败: {str(e)}", error=True)
+            if self.log_display:
+                self.log_display.add_log(f"自动保存失败: {str(e)}")
 
-            # 通知设置
-            config_data['notification'] = {
-                'disable_push': self.disable_push_check.isChecked(),
-                'token': self.wechat_token_edit.text(),
-                'verbosity': self.verbosity_spin.value(),
-                'minimum_interval': self.minimum_interval_spin.value()
-            }
+    def save_course_configs(self):
+        """保存课程相关配置"""
+        try:
+            config_data = self.config_manager.load_config()
 
-            # API密钥设置
-            config_data['apikey'] = {
-                'username': self.username_edit.text(),
-                'password': self.apikey_password_edit.text(),
-                'RecognitionTypeid': self.recognition_type_edit.text()
-            }
-
-            # 课程配置
+            # 更新课程配置部分
             config_data['courses'] = self.courses_data
             config_data['mutex'] = self.mutex_data
             config_data['delay'] = self.delay_data
 
             # 保存配置
             self.config_manager.save_config(config_data)
+            self.update_save_status("课程设置已保存")
+            self.update_config_stats()
 
+        except Exception as e:
+            self.update_save_status(f"课程设置保存失败: {str(e)}", error=True)
             if self.log_display:
-                self.log_display.add_log("配置文件保存成功！")
+                self.log_display.add_log(f"课程设置保存失败: {str(e)}")
+
+    def save_all_configs(self):
+        """手动保存所有配置"""
+        try:
+            config_data = {}
+
+            # 收集所有配置
+            config_data['user'] = self.get_user_config()
+            config_data['client'] = self.get_client_config()
+            config_data['monitor'] = self.get_monitor_config()
+            config_data['notification'] = self.get_notification_config()
+            config_data['apikey'] = self.get_apikey_config()
+            config_data['courses'] = self.courses_data
+            config_data['mutex'] = self.mutex_data
+            config_data['delay'] = self.delay_data
+
+            # 保存配置
+            self.config_manager.save_config(config_data)
+            self.update_save_status("所有设置已手动保存")
+            self.update_config_stats()
+
             QMessageBox.information(self, "成功", "配置文件保存成功！")
 
         except Exception as e:
-            if self.log_display:
-                self.log_display.add_log(f"保存配置文件失败: {str(e)}")
+            self.update_save_status(f"保存失败: {str(e)}", error=True)
             QMessageBox.critical(self, "错误", f"保存配置文件失败: {str(e)}")
+
+    # 各个辅助保存函数
+    def get_user_config(self):
+        """获取用户配置数据"""
+        return {
+            'student_id': self.student_id_edit.text(),
+            'password': self.password_edit.text(),
+            'dual_degree': self.dual_degree_check.isChecked(),
+            'identity': self.identity_combo.currentText()
+        }
+
+    def get_client_config(self):
+        return {
+            'supply_cancel_page': self.supply_cancel_page_spin.value(),
+            'refresh_interval': self.refresh_interval_spin.value(),
+            'random_deviation': self.refresh_random_deviation_spin.value(),
+            'iaaa_client_timeout': self.iaaa_timeout_spin.value(),
+            'elective_client_timeout': self.elective_timeout_spin.value(),
+            'elective_client_pool_size': self.pool_size_spin.value(),
+            'elective_client_max_life': self.max_life_spin.value(),
+            'login_loop_interval': self.login_loop_interval_spin.value(),
+            'print_mutex_rules': self.print_mutex_check.isChecked(),
+            'debug_print_request': self.debug_request_check.isChecked(),
+            'debug_dump_request': self.debug_dump_check.isChecked()
+        }
+
+    def get_monitor_config(self):
+        return {
+            'host': self.monitor_host_edit.text(),
+            'port': self.monitor_port_spin.value()
+        }
+
+    def get_notification_config(self):
+        return {
+            'disable_push': self.disable_push_check.isChecked(),
+            'token': self.wechat_token_edit.text(),
+            'verbosity': self.verbosity_spin.value(),
+            'minimum_interval': self.minimum_interval_spin.value()
+        }
+
+    def get_apikey_config(self):
+        return {
+            'username': self.username_edit.text(),
+            'password': self.apikey_password_edit.text(),
+            'RecognitionTypeid': self.recognition_type_edit.text()
+        }
+
+    # 状态更新标签
+    def update_save_status(self, message, error=False):
+        """更新保存状态标签，包括时间戳"""
+        # 获取当前时间并格式化为字符串
+        current_time = datetime.now().strftime("%H:%M:%S")
+        
+        if error:
+            status_text = f"! {message} [{current_time}]"
+            self.save_status_label.setStyleSheet("""
+                QLabel {
+                    color: #F44336;
+                    font-size: 12px;
+                    padding: 5px;
+                }
+            """)
+        else:
+            status_text = f"✓ {message} [{current_time}]"
+            self.save_status_label.setStyleSheet("""
+                QLabel {
+                    color: #4CAF50;
+                    font-size: 12px;
+                    padding: 5px;
+                }
+            """)
+        
+        self.save_status_label.setText(status_text)
+        self.last_save_time = datetime.now()
+        
+        # 5秒后自动清除成功状态
+        if not error:
+            QTimer.singleShot(5000, self.clear_success_status)
+    
+    def clear_success_status(self):
+        """清除成功状态，只保留最后保存时间"""
+        if self.last_save_time:
+            last_save_str = self.last_save_time.strftime("%H:%M:%S")
+            self.save_status_label.setText(f"最后保存于: {last_save_str}")
+            self.save_status_label.setStyleSheet("""
+                QLabel {
+                    color: #666666;
+                    font-size: 12px;
+                    padding: 5px;
+                }
+            """)
 
     # 各标签页创建
     # 创建带提示图标的标签函数
     # help_icon = QIcon(":/icons/help_icon.png")
-
-    @classmethod
     def create_label_with_tooltip(self, text, tooltip):
         hbox = QHBoxLayout()
         label = QLabel(text)
@@ -454,6 +624,9 @@ class ConfigEditor(QWidget):
         self.apikey_stacked_widget.addWidget(local_widget)
         self.apikey_stacked_widget.addWidget(tt_widget)
         self.apikey_stacked_widget.addWidget(custom_widget)
+
+        # 栈窗口默认显示TT识别
+        self.apikey_stacked_widget.setCurrentIndex(1)
 
         # 连接单选按钮的信号到槽函数
         self.local_model_radio.toggled.connect(self.on_apikey_option_changed)
@@ -932,6 +1105,7 @@ class ConfigEditor(QWidget):
                         'class': class_no,
                         'school': school
                     }
+                    self.save_course_configs()
                 else:
                     QMessageBox.warning(self, "警告", "该课程ID已被使用！请更换其他ID")
             else:
@@ -959,9 +1133,10 @@ class ConfigEditor(QWidget):
         matches = []
         for i in range(len(clipboard_text)):
             # 匹配"x.0"形式，如4.0 12.0
-            if re.fullmatch(r'^\d+\.0$', clipboard_text[i]) and i+4<len(clipboard_text) and i-2>=0:
+            if re.fullmatch(r'^\d+\.0$', clipboard_text[i]) and i+4 < len(clipboard_text) and i-2 >= 0:
                 if re.fullmatch(r'^\d+\.0$', clipboard_text[i+1]):
-                    matches.append((clipboard_text[i-2].strip(),clipboard_text[i+3].strip(),clipboard_text[i+4].strip()))
+                    matches.append(
+                        (clipboard_text[i-2].strip(), clipboard_text[i+3].strip(), clipboard_text[i+4].strip()))
 
         if not matches:
             QMessageBox.warning(
@@ -1035,6 +1210,9 @@ class ConfigEditor(QWidget):
             # 更新统计信息
             if added_count > 0:
                 self.update_config_stats()
+
+            # 保存导入信息
+            self.save_course_configs()
 
             # 显示导入结果
             msg = f"成功添加 {added_count} 门课程"
@@ -1121,6 +1299,7 @@ class ConfigEditor(QWidget):
                     if not hasattr(self, 'mutex_data'):
                         self.mutex_data = {}
                     self.mutex_data[rule_id] = selected_courses
+                    self.save_course_configs()
                 else:
                     QMessageBox.warning(self, "警告", "该互斥规则ID已被使用！请更换其他ID")
             else:
@@ -1182,6 +1361,7 @@ class ConfigEditor(QWidget):
                         'course': course_id,
                         'threshold': threshold
                     }
+                    self.save_course_configs()
                 else:
                     QMessageBox.warning(self, "警告", "该延迟规则ID已被使用！请更换其他ID")
             else:
@@ -1267,6 +1447,8 @@ class ConfigEditor(QWidget):
             if child.widget():
                 child.widget().deleteLater()
 
+        self.save_course_configs()
+
     def update_config_stats(self):
         """更新配置统计信息"""
         try:
@@ -1326,6 +1508,9 @@ class ConfigEditor(QWidget):
                 # 重新创建条目
                 self.refresh_course_item(course_id)
 
+                # 保存到本地
+                self.save_course_configs()
+
                 # 更新统计信息
                 self.update_config_stats()
             else:
@@ -1373,6 +1558,9 @@ class ConfigEditor(QWidget):
             # 清理依赖此课程的延迟规则
             self.cleanup_delay_rules(course_id)
 
+            # 保存到本地
+            self.save_course_configs()
+
             # 更新统计信息
             self.update_config_stats()
 
@@ -1385,7 +1573,7 @@ class ConfigEditor(QWidget):
         # 遍历所有互斥规则
         for mutex_id, courses in self.mutex_data.items():
             # 如果课程在该互斥规则中
-            if course_id in courses and len(courses)<=2:
+            if course_id in courses and len(courses) <= 2:
                 affected_rules.append(f"- 互斥规则 {mutex_id} (包含课程: {course_id})")
 
         return affected_rules
@@ -1501,6 +1689,9 @@ class ConfigEditor(QWidget):
                 # 重新创建条目
                 self.refresh_mutex_item(mutex_id)
 
+                # 保存到本地
+                self.save_course_configs()
+
                 # 更新统计信息
                 self.update_config_stats()
             else:
@@ -1522,6 +1713,9 @@ class ConfigEditor(QWidget):
 
             # 从界面中删除条目
             self.remove_mutex_item(mutex_id)
+
+            # 保存到本地
+            self.save_course_configs()
 
             # 更新统计信息
             self.update_config_stats()
@@ -1574,6 +1768,9 @@ class ConfigEditor(QWidget):
                 # 重新创建条目
                 self.refresh_delay_item(delay_id)
 
+                # 保存到本地
+                self.save_course_configs()
+
                 # 更新统计信息
                 self.update_config_stats()
             else:
@@ -1595,6 +1792,9 @@ class ConfigEditor(QWidget):
 
             # 从界面中删除条目
             self.remove_delay_item(delay_id)
+
+            # 保存到本地
+            self.save_course_configs()
 
             # 更新统计信息
             self.update_config_stats()
