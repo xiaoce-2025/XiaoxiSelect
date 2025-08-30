@@ -1,6 +1,8 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-# filename: loop.py
+"""
+@Author : xiaoce2025
+@File   : loop.py
+@Date   : 2025-08-30
+"""
 
 import os
 import time
@@ -81,6 +83,49 @@ NO_DELAY = -1
 notify.send_bark_push(msg=WECHAT_MSG["s"], prefix=WECHAT_PREFIX[3])
 
 
+# 刷新系统配置
+def refreshsettings():
+    global username, password, is_dual_degree, identity, refresh_interval
+    global refresh_random_deviation, supply_cancel_page, iaaa_client_timeout
+    global elective_client_timeout, login_loop_interval, elective_client_pool_size
+    global elective_client_max_life, is_print_mutex_rules, notify
+    global electivePool, reloginPool, goals, ignored, mutexes, delays
+    global recognizer
+
+    username = config.iaaa_id
+    password = config.iaaa_password
+    is_dual_degree = config.is_dual_degree
+    identity = config.identity
+    refresh_interval = config.refresh_interval
+    refresh_random_deviation = config.refresh_random_deviation
+    supply_cancel_page = config.supply_cancel_page
+    iaaa_client_timeout = config.iaaa_client_timeout
+    elective_client_timeout = config.elective_client_timeout
+    login_loop_interval = config.login_loop_interval
+    elective_client_pool_size = config.elective_client_pool_size
+    elective_client_max_life = config.elective_client_max_life
+    is_print_mutex_rules = config.is_print_mutex_rules
+    notify = Notify(
+        _disable_push=config.disable_push,
+        _token=config.wechat_token,
+        _interval_lock=config.minimum_interval,
+        _verbosity=config.verbosity,
+    )
+
+    recognizer = TTShituRecognizer()
+
+    electivePool = Queue(maxsize=elective_client_pool_size)
+    reloginPool = Queue(maxsize=elective_client_pool_size)
+
+    goals = environ.goals  # let N = len(goals);
+    ignored = environ.ignored
+    mutexes = np.zeros(0, dtype=np.uint8)  # uint8 [N][N];
+    delays = np.zeros(0, dtype=np.int32)  # int [N];
+    return
+
+
+
+
 class _ElectiveNeedsLogin(Exception):
     pass
 
@@ -120,6 +165,9 @@ def _dump_respose_content(content, filename):
 
 
 def run_iaaa_loop():
+    # 刷新配置（不在此处不刷新，在启动时统一刷新）
+    # refreshdata()
+
     elective = None
 
     while True:
@@ -238,6 +286,9 @@ def run_iaaa_loop():
 
 
 def run_elective_loop():
+    # 刷新配置（不在此处不刷新，在启动时统一刷新）
+    # refreshdata()
+
     elective = None
     noWait = False
 

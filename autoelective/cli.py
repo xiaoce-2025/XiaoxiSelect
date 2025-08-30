@@ -1,7 +1,7 @@
 """
 @Author : xiaoce2025
 @File   : cli.py
-@Date   : 2025-08-29
+@Date   : 2025-08-30
 """
 
 from optparse import OptionParser
@@ -59,6 +59,10 @@ def create_default_threads_reload(options, args, environ):
         environ.api_config = APIConfig()
     # 调用重载方法
     environ.api_config.reload()
+
+    # 刷新配置
+    from autoelective.loop import refreshsettings
+    refreshsettings()
 
     # import here to ensure the singleton `config` will be init later than parse_args()
     from autoelective.loop import run_iaaa_loop, run_elective_loop
