@@ -21,3 +21,4 @@ class Environ(object, metaclass=Singleton):
         self.monitor_thread = None
         self.goals = []  # [Course]
         self.ignored = {}  # {Course, reason}
+        self.config_TTapikey = None

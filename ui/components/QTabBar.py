@@ -1,41 +1,53 @@
-from PyQt6.QtWidgets import QTabBar, QStyle, QStylePainter, QStyleOptionTab
-from PyQt6.QtCore import QRect, Qt, QSize, QPoint
-from PyQt6.QtGui import QTransform
+from PyQt6.QtWidgets import QTabBar, QStyle, QStyleOptionTab
+from PyQt6.QtGui import QPainter, QFont, QColor, QCursor
+from PyQt6.QtCore import Qt, QSize, QRect
 
 class VerticalTabBar(QTabBar):
+    """自定义垂直标签栏"""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.setFont(QFont("Microsoft YaHei", 10, QFont.Weight.Bold))
+        self.setExpanding(False)
+        
+    def tabSizeHint(self, index):
+        """重写标签尺寸"""
+        # 固定尺寸，交换宽高以实现垂直布局
+        return QSize(120, 40)
+    
     def paintEvent(self, event):
-        painter = QStylePainter(self)
-        option = QStyleOptionTab()
+        """自定义绘制标签"""
+        painter = QPainter(self)
         
         for index in range(self.count()):
-            self.initStyleOption(option, index)
+            # 创建并初始化样式选项
+            option = QStyleOptionTab()
+            option.initFrom(self)
+            option.state = QStyle.StateFlag.State_Active | QStyle.StateFlag.State_Enabled
             
-            # 保存painter状态
-            painter.save()
+            # 设置当前状态
+            if index == self.currentIndex():
+                option.state |= QStyle.StateFlag.State_Selected
+            if self.tabRect(index).contains(self.mapFromGlobal(QCursor.pos())):
+                option.state |= QStyle.StateFlag.State_MouseOver
+                
+            option.text = self.tabText(index)
+            option.rect = self.tabRect(index)
+            option.icon = self.tabIcon(index)
+            option.shape = self.shape()  # 设置标签形状/方向
             
-            # 获取标签矩形
-            tab_rect = self.tabRect(index)
+            rect = option.rect
             
-            # 清除默认文本
-            option.text = ""
-            # 绘制标签形状
-            painter.drawControl(QStyle.ControlElement.CE_TabBarTabShape, option)
+            # 绘制背景
+            if option.state & QStyle.StateFlag.State_Selected:
+                painter.setBrush(QColor("#4A6572"))  # 选中状态深蓝色
+            elif option.state & QStyle.StateFlag.State_MouseOver:
+                painter.setBrush(QColor("#344955"))  # 悬停状态深灰色
+            else:
+                painter.setBrush(QColor("#F9AA33"))  # 默认状态橙色
+                
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawRoundedRect(rect.adjusted(1, 1, -1, -1), 5, 5)
             
-            # 旋转painter以绘制竖向文本
-            painter.translate(tab_rect.center())
-            painter.rotate(0)  # 旋转90度使文本竖向
-            
-            # 创建新的文本矩形
-            text_rect = QRect(0, 0, tab_rect.height(), tab_rect.width())
-            text_rect.moveCenter(QPoint(0, 0))
-            
-            # 绘制文本
-            painter.drawText(text_rect, Qt.AlignmentFlag.AlignCenter, self.tabText(index))
-            
-            # 恢复painter状态
-            painter.restore()
-
-    def tabSizeHint(self, index):
-        # 获取默认大小并交换宽高
-        size = super().tabSizeHint(index)
-        return QSize(size.height(), size.width())
+            # 绘制文字
+            painter.setPen(QColor("#FFFFFF"))  # 白色文字
+            painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, option.text)

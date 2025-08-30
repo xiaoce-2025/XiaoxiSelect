@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTabWidget,
                              QVBoxLayout, QDialogButtonBox, QListWidgetItem)
 from PyQt6.QtCore import Qt, QTimer
 from config.config_manager import ConfigManager
-# from ui.components.QTabBar import VerticalTabBar
+from .components.QTabBar import VerticalTabBar
 from PyQt6.QtGui import QIcon, QPixmap
 import re
 import pyperclip  # 用于访问剪贴板

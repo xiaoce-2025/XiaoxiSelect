@@ -5,23 +5,30 @@
 import os
 import json
 import configparser
+from autoelective.environ import Environ
+from autoelective.const import DEFAULT_CONFIG_INI,DEFAULT_CONFIG_TTAPI
 
 class ConfigManager:
     """配置管理器类"""
     
     def __init__(self):
-        self.config_file = "config.ini"
-        self.apikey_file = "apikey.json"
-        
+        # 使用与 AutoElectiveConfig 相同的路径解析逻辑
+        env = Environ()
+        self.config_file = env.config_ini or DEFAULT_CONFIG_INI
+        self.apikey_file = DEFAULT_CONFIG_TTAPI
+    
     def load_config(self):
         """加载配置文件"""
         config_data = {}
         
         try:
+            # 使用解析后的配置文件路径
+            config_path = os.path.normpath(os.path.abspath(self.config_file))
+            
             # 加载config.ini
-            if os.path.exists(self.config_file):
+            if os.path.exists(config_path):
                 config = configparser.ConfigParser()
-                config.read(self.config_file, encoding='utf-8')
+                config.read(config_path, encoding='utf-8')
                 
                 # 加载用户设置
                 if 'user' in config:
@@ -88,8 +95,9 @@ class ConfigManager:
                         }
             
             # 加载apikey.json
-            if os.path.exists(self.apikey_file):
-                with open(self.apikey_file, 'r', encoding='utf-8') as f:
+            apikey_path = os.path.normpath(os.path.abspath(self.apikey_file))
+            if os.path.exists(apikey_path):
+                with open(apikey_path, 'r', encoding='utf-8') as f:
                     apikey_data = json.load(f)
                     config_data['apikey'] = apikey_data
         
@@ -151,12 +159,15 @@ class ConfigManager:
                     for key, value in delay_data.items():
                         config.set(section_name, key, str(value))
             
-            with open(self.config_file, 'w', encoding='utf-8') as f:
+            # 使用解析后的配置文件路径
+            config_path = os.path.normpath(os.path.abspath(self.config_file))
+            with open(config_path, 'w', encoding='utf-8') as f:
                 config.write(f)
             
             # 保存apikey.json
+            apikey_path = os.path.normpath(os.path.abspath(self.apikey_file))
             if 'apikey' in config_data:
-                with open(self.apikey_file, 'w', encoding='utf-8') as f:
+                with open(apikey_path, 'w', encoding='utf-8') as f:
                     json.dump(config_data['apikey'], f, indent=4, ensure_ascii=False)
         
         except Exception as e:

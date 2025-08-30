@@ -17,6 +17,8 @@ CNN_MODEL_FILE = get_abs_path("../model/cnn.20210311.1.pt")
 USER_AGENTS_TXT_GZ = get_abs_path("../user_agents.txt.gz")
 USER_AGENTS_USER_TXT = get_abs_path("../user_agents.user.txt")
 DEFAULT_CONFIG_INI = get_abs_path("../config.ini")
+DEFAULT_CONFIG_TTAPI = get_abs_path("../apikey.json")
+
 
 WECHAT_MSG = {0: "出现未知异常，程序中止", 1: "选课成功，课程为：", 2: "有名额，验证码识别失败，正在重试", 3: "出现重复选课，请调整config文件", "s": "刷课开始", 4: "时间冲突，课程为", 5: "考试时间冲突，课程为"}
 WECHAT_PREFIX = {0: "[异常]", 1: "[成功]", 2: "[失败]", 3: "[特殊]"}
