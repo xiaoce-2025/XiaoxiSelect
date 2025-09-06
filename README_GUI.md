@@ -42,13 +42,14 @@ pip install PyQt6
 ## 使用方法
 
 ### 1. 启动程序
-```bash
-python run_gui.py
-```
-
-或者直接运行：
+启动图形界面：
 ```bash
 python gui_main.py
+```
+
+启动命令行界面
+```bash
+python main.py
 ```
 
 ### 2. 配置设置
