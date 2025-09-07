@@ -600,6 +600,9 @@ def run_elective_loop():
 
                 ## validate captcha first
 
+                captcha_fail_count = 0
+                max_captcha_fails = 5
+                
                 while True:
                     cout.info("Fetch a captcha")
                     r = elective.get_DrawServlet()
@@ -618,12 +621,23 @@ def run_elective_loop():
                         cout.info("Validation passed")
                         break
                     elif res == "0":
-                        cout.info("Validation failed")
+                        captcha_fail_count += 1
+                        cout.info("Validation failed (attempt %d/%d)" % (captcha_fail_count, max_captcha_fails))
                         # notify.send_bark_push(msg=WECHAT_MSG[2], prefix=WECHAT_PREFIX[2])
                         cout.info("Auto error caching skipped for good")
-                        cout.info("Try again")
+                        
+                        if captcha_fail_count >= max_captcha_fails:
+                            cout.warning("Captcha validation failed %d times, skipping this course" % max_captcha_fails)
+                            break
+                        else:
+                            cout.info("Try again")
                     else:
                         cout.warning("Unknown validation result: %s" % res)
+                
+                # 如果验证码失败次数达到上限，跳过当前课程
+                if captcha_fail_count >= max_captcha_fails:
+                    cout.info("Skipping course %s due to captcha validation failures" % course)
+                    continue
 
                 ## try to elect
 
