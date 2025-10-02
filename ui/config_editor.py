@@ -161,14 +161,12 @@ class ConfigEditor(QWidget):
             # 加载通知设置
             if 'notification' in config_data:
                 notification_data = config_data['notification']
-                self.disable_push_check.setChecked(
-                    notification_data.get('disable_push', False))
-                self.wechat_token_edit.setText(
-                    notification_data.get('token', ''))
-                self.verbosity_spin.setValue(
-                    notification_data.get('verbosity', 1))
-                self.minimum_interval_spin.setValue(
-                    notification_data.get('minimum_interval', 1.0))
+                self.yanxx_voice_check.setChecked(
+                    notification_data.get('yanxx_voice', False))
+                self.yanxx_weixin_check.setChecked(
+                    notification_data.get('yanxx_weixin', False))
+                self.yanxx_weixin_user_edit.setText(
+                    notification_data.get('yanxx_weixin_user', ''))
 
             # 加载API密钥设置
             if 'apikey' in config_data:
@@ -246,12 +244,11 @@ class ConfigEditor(QWidget):
             self.save_non_course_configs)
 
         # 通知设置
-        self.disable_push_check.stateChanged.connect(
+        self.yanxx_voice_check.stateChanged.connect(
             self.save_non_course_configs)
-        self.wechat_token_edit.editingFinished.connect(
+        self.yanxx_weixin_check.stateChanged.connect(
             self.save_non_course_configs)
-        self.verbosity_spin.valueChanged.connect(self.save_non_course_configs)
-        self.minimum_interval_spin.valueChanged.connect(
+        self.yanxx_weixin_user_edit.editingFinished.connect(
             self.save_non_course_configs)
 
         # 验证码识别设置
@@ -368,10 +365,9 @@ class ConfigEditor(QWidget):
 
     def get_notification_config(self):
         return {
-            'disable_push': self.disable_push_check.isChecked(),
-            'token': self.wechat_token_edit.text(),
-            'verbosity': self.verbosity_spin.value(),
-            'minimum_interval': self.minimum_interval_spin.value()
+            'yanxx_voice': self.yanxx_voice_check.isChecked(),
+            'yanxx_weixin': self.yanxx_weixin_check.isChecked(),
+            'yanxx_weixin_user': self.yanxx_weixin_user_edit.text(),
         }
 
     def get_apikey_config(self):
@@ -444,7 +440,7 @@ class ConfigEditor(QWidget):
         # tooltip_label.setPixmap(help_icon.pixmap(QSize(16, 16)))  # 设置图标大小
         # tooltip_label.setToolTip(tooltip)
         # tooltip_label.setCursor(Qt.CursorShape.PointingHandCursor)
-
+    
         hbox.addWidget(label)
         hbox.addWidget(tooltip_label)
         hbox.addStretch()  # 添加弹性空间
@@ -472,11 +468,23 @@ class ConfigEditor(QWidget):
             "IAAA密码:", "请输入您的IAAA认证密码"), self.password_edit)
         layout.addRow(self.create_label_with_tooltip(
             "是否为双学位账号", "只要你的账号在登录时需要选择“主修/辅双”身份，此处就需要勾选"), self.dual_degree_check)
-        layout.addRow(self.create_label_with_tooltip(
+        # 创建身份选择容器（初始隐藏）
+        self.identity_container = QWidget()
+        identity_layout = QFormLayout()
+        identity_layout.addRow(self.create_label_with_tooltip(
             "身份", "双学位账号登录身份，bzx主修，bfx辅双"), self.identity_combo)
+        self.identity_container.setLayout(identity_layout)
+        self.identity_container.setVisible(False)  # 初始隐藏
+        layout.addRow("",self.identity_container)  # 添加身份容器
+        # 连接双学位复选框状态改变信号
+        self.dual_degree_check.stateChanged.connect(self.toggle_identity_visibility)
 
         widget.setLayout(layout)
         return widget
+    
+    def toggle_identity_visibility(self, state):
+        """根据双学位复选框状态显示/隐藏身份选择"""
+        self.identity_container.setVisible(state == Qt.CheckState.Checked.value)
 
     def create_client_tab(self):
         """创建客户端设置标签页"""
@@ -553,25 +561,70 @@ class ConfigEditor(QWidget):
         widget = QWidget()
         layout = QFormLayout()
 
-        self.disable_push_check = QCheckBox()
-        self.wechat_token_edit = QLineEdit()
-        self.verbosity_spin = QSpinBox()
-        self.verbosity_spin.setRange(0, 5)
-        self.minimum_interval_spin = QDoubleSpinBox()
-        self.minimum_interval_spin.setRange(0.1, 10.0)
-        self.minimum_interval_spin.setSingleStep(0.1)
+        self.yanxx_voice_check = QCheckBox()
+        self.yanxx_weixin_check = QCheckBox()
+        self.yanxx_weixin_user_edit = QLineEdit()
 
         layout.addRow(self.create_label_with_tooltip(
-            "禁用推送:", "是否拒绝接收微信提醒，1为拒收，0为接收提醒"), self.disable_push_check)
+            "语音提醒：", "是否开启语音提醒"), self.yanxx_voice_check)
         layout.addRow(self.create_label_with_tooltip(
-            "微信Token:", "您从公众号获得的唯一token"), self.wechat_token_edit)
-        layout.addRow(self.create_label_with_tooltip(
-            "详细程度:", "推送消息详细级别，1为推送选课成功、失败；2为在此基础上推送所有ERROR类型消息"), self.verbosity_spin)
-        layout.addRow(self.create_label_with_tooltip(
-            "最小间隔(秒):", "若消息产生时，距离上次成功发送不足这一时间，则取消发送。-1为不设置"), self.minimum_interval_spin)
+            "微信提醒与控制：", "是否开启微信提醒与控制"), self.yanxx_weixin_check)
+         # 创建微信昵称容器（初始隐藏）
+        self.yanxx_weixin_user_container = QWidget()
+        yanxx_weixin_user_layout = QFormLayout()
+        yanxx_weixin_user_layout.addRow(self.create_label_with_tooltip(
+            "监听微信账号昵称：", "请输入进行微信提醒与控制的账号的昵称"), self.yanxx_weixin_user_edit)
+        test_button = QPushButton("测试通知功能")
+        test_button.setStyleSheet("""
+            QPushButton {
+                background-color: #2196F3;
+                color: white;
+                border: none;
+                padding: 10px;
+                border-radius: 5px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #1976D2;
+            }
+        """)
+        test_button.clicked.connect(self.start_notification_test)
+        yanxx_weixin_user_layout.addRow(test_button)
+        self.yanxx_weixin_user_container.setLayout(yanxx_weixin_user_layout)
+        self.yanxx_weixin_user_container.setVisible(False)  # 初始隐藏
+        layout.addRow("",self.yanxx_weixin_user_container)  # 添加微信昵称容器
+        # 连接微信监听状态复选框状态改变信号
+        self.yanxx_weixin_check.stateChanged.connect(self.yanxx_weixin_user_visibility)
 
         widget.setLayout(layout)
         return widget
+    
+    def yanxx_weixin_user_visibility(self, state):
+        """根据双学位复选框状态显示/隐藏微信昵称"""
+        self.yanxx_weixin_user_container.setVisible(state == Qt.CheckState.Checked.value)
+
+    def start_notification_test(self):
+        """启动通知测试进程"""
+        # 这里添加启动通知测试进程的代码
+        # 在实际应用中，这里会调用通知系统的测试功能
+        
+        # 示例：模拟测试过程
+        QMessageBox.information(self, "通知测试", "正在启动通知测试进程...")
+        success = False
+        try:
+            from wxauto4 import WeChat
+            wx = WeChat()
+            wx.SendMsg(self.yanxx_weixin_user_edit.text(),"[系统自检]信息发送测试")
+            wx.StopListening()
+            del wx
+        except Exception as e:
+            print(e)
+        
+        if success:
+            QMessageBox.information(self, "测试成功", "通知功能测试成功！")
+        else:
+            QMessageBox.warning(self, "测试失败", "通知功能测试失败，请检查配置")
+
 
     def create_apikey_tab(self):
         """创建验证码识别API密钥设置标签页"""

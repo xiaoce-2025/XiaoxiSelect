@@ -117,11 +117,11 @@ class AutoElectiveConfig(BaseConfig, metaclass=Singleton):
         self._monitor_host = self.get("monitor", "host")
         self._monitor_port = self.getint("monitor", "port")
         
-        # [notification] 部分
-        self._disable_push = self.getboolean("notification", "disable_push")
-        self._wechat_token = self.get("notification", "token")
-        self._verbosity = self.getint("notification", "verbosity")
-        self._minimum_interval = self.getfloat("notification", "minimum_interval")
+        # [notification] 部分（已弃用，为保证原有代码流畅运行，此处赋常值）
+        self._disable_push = True
+        self._wechat_token = ""
+        self._verbosity = 1
+        self._minimum_interval = 1.0
         
         # [course] 部分 - 动态属性
         self._courses = self._load_courses()
