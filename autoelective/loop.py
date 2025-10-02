@@ -341,14 +341,8 @@ def run_elective_loop():
         client.set_user_agent(random.choice(USER_AGENT_LIST))
         electivePool.put_nowait(client)
 
-    ## print header
-
-    header = "# PKU Auto-Elective Tool v%s (%s) #" % (__version__, __date__)
-    line = "#" + "-" * (len(header) - 2) + "#"
-
-    cout.info(line)
-    cout.info(header)
-    cout.info(line)
+    cout.info("欢迎使用自动选课小工具！")
+    cout.info("科技不应高高在上，而应服务于每一个人")
     cout.info("")
 
     line = "-" * 30

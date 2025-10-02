@@ -26,7 +26,7 @@ class MainWindow(QMainWindow):
         self.setup_auto_elective()
     
     def init_ui(self):
-        self.setWindowTitle("PKUElective2025Autumn")
+        self.setWindowTitle("PKUElective2026Spring")
         self.setGeometry(100, 100, 1200, 800)
         
         # 设置应用图标
