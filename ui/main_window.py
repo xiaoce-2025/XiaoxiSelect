@@ -11,10 +11,11 @@ from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QLabel, QPushButton, QCheckBox, QTabWidget, QMessageBox,
                              QFrame, QSizePolicy)
 from PyQt6.QtCore import QTimer, Qt
-from PyQt6.QtGui import QIcon, QFont, QColor, QLinearGradient, QBrush, QPalette
+from PyQt6.QtGui import QIcon, QFont, QColor, QLinearGradient, QBrush, QPalette, QShortcut, QKeySequence
 from autoelective.environ import Environ
 from ui.config_editor import ConfigEditor
 from ui.log_display import LogDisplay
+from ui.console_window import ConsoleWindow
 from utils.thread_utils import cleanup_environment, cleanup_global_queues, verify_clean_state
 
 class MainWindow(QMainWindow):
@@ -24,6 +25,11 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.init_ui()
         self.setup_auto_elective()
+        self.setup_console_window()
+        
+        # 检查更新
+        from version.update_check import check_update
+        check_update(self)
     
     def init_ui(self):
         self.setWindowTitle("PKUElective2026Spring")
@@ -287,6 +293,23 @@ class MainWindow(QMainWindow):
         self.status_timer = QTimer()
         self.status_timer.timeout.connect(self.check_thread_status)
         self.status_timer.start(2000)  # 每2秒检查一次
+    
+    def setup_console_window(self):
+        """设置Console窗口和快捷键"""
+        # 创建Console窗口（但不立即显示）
+        self.console_window = ConsoleWindow(self)
+        # 创建快捷键 Ctrl+Shift+I
+        self.console_shortcut = QShortcut(QKeySequence("Ctrl+Shift+I"), self)
+        self.console_shortcut.activated.connect(self.toggle_console_window)
+    
+    def toggle_console_window(self):
+        """切换Console窗口的显示状态"""
+        if self.console_window.isVisible():
+            self.console_window.hide()
+        else:
+            self.console_window.show()
+            self.console_window.raise_()  # 将窗口置于最前
+            self.console_window.activateWindow()  # 激活窗口
     
     def setup_auto_elective(self):
         """设置自动选课系统"""

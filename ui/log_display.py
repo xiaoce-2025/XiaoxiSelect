@@ -39,7 +39,7 @@ class NotificationWorker(QThread):
 
         # 先发微信通知
         if self.notification_config["yanxx_weixin"]:
-            import wxauto4
+            # import wxauto4
             pass
         
 
@@ -313,14 +313,14 @@ class LogDisplay(QWidget):
             if not self.current_worker:
                 self.process_next_notification()
 
-        # 测试用（选课网未开放）
-        if "目前不是补退选时间，因此不能进行相应操作" in formatted_msg.upper():
-            self.notification_queue.append("[07:56:59][INFO] Course(羽毛球, 体育教研部, 30 / 0) is AVAILABLE now !")
-            if not self.current_worker:
-                self.process_next_notification()
-            self.notification_queue.append("[07:56:59][INFO] Course(羽毛球, 体育教研部, 30 / 0) is ELECTED !")
-            if not self.current_worker:
-                self.process_next_notification()
+        # 测试用（选课网未开放）（测试已经通过）
+        # if "目前不是补退选时间，因此不能进行相应操作" in formatted_msg.upper():
+        #     self.notification_queue.append("[07:56:59][INFO] Course(羽毛球, 体育教研部, 30 / 0) is AVAILABLE now !")
+        #     if not self.current_worker:
+        #         self.process_next_notification()
+        #     self.notification_queue.append("[07:56:59][INFO] Course(羽毛球, 体育教研部, 30 / 0) is ELECTED !")
+        #     if not self.current_worker:
+        #         self.process_next_notification()
 
         # 限制日志行数
         max_lines = 1000
