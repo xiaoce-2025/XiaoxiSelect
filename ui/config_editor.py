@@ -35,6 +35,45 @@ class ConfigEditor(QWidget):
         self.last_save_time = None
         self.autosave_enabled = True
 
+        # 创建配置统计标签和删除按钮
+        self.config_stats_label = QLabel("配置统计：0 个课程，0 个互斥规则，0 个延迟规则")
+        self.config_stats_label.setStyleSheet("""
+            QLabel {
+                background-color: #e9ecef;
+                border: 1px solid #adb5bd;
+                border-radius: 6px;
+                padding: 10px 15px;
+                margin: 5px;
+                font-size: 10pt;
+                color: #495057;
+            }
+        """)
+        self.config_stats_label.hide()  # 默认隐藏
+
+        self.clear_btn = QPushButton("删除所有课程配置")
+        self.clear_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #dc3545;
+                color: white;
+                border: none;
+                padding: 8px 12px;
+                margin: 5px;
+                border-radius: 6px;
+                font-size: 10pt;
+                font-weight: 500;
+                max-width: 140px;
+            }
+            QPushButton:hover {
+                background-color: #c82333;
+            }
+            QPushButton:pressed {
+                background-color: #bd2130;
+            }
+        """)
+        self.clear_btn.setToolTip("清空所有课程、互斥规则和延迟规则")
+        self.clear_btn.clicked.connect(self.clear_all_course_configs)
+        self.clear_btn.hide()  # 默认隐藏
+
         self.init_ui()
         self.load_configs()
 
@@ -117,6 +156,7 @@ class ConfigEditor(QWidget):
                 border-radius: 6px;
                 margin-top: 1ex;
                 background: #f8f9fa;
+                           
             }
             QGroupBox::title {
                 subcontrol-origin: margin;
@@ -159,38 +199,56 @@ class ConfigEditor(QWidget):
         """)
 
         layout = QVBoxLayout()
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(10)
 
-        # 创建标签页
-        tab_widget = QTabWidget()
+        # 创建切换按钮
+        self.switch_button = QPushButton("切换到课程设置")
+        self.switch_button.clicked.connect(self.switch_view)
+        self.switch_button.setStyleSheet("""
+            QPushButton {
+                background-color: #007bff;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 6px;
+                font-size: 10pt;
+                font-weight: 500;
+            }
+            QPushButton:hover {
+                background-color: #0056b3;
+            }
+            QPushButton:pressed {
+                background-color: #004085;
+            }
+        """)
 
-        # 标签居左（待完善，目前标签栏仍居上）
-        # tab_widget.setTabPosition(QTabWidget.TabPosition.West)
-        # 使用自定义QTabBar使文字竖向
-        # tab_widget.setTabBar(VerticalTabBar())
+        # 顶部布局：右上角按钮
+        top_layout = QHBoxLayout()
+        top_layout.addStretch()
+        top_layout.addWidget(self.config_stats_label)
+        top_layout.addWidget(self.clear_btn)
+        top_layout.addWidget(self.switch_button)
+        layout.addLayout(top_layout)
 
-        # 用户设置标签页
-        user_tab = self.create_user_tab()
-        tab_widget.addTab(user_tab, "用户设置")
+        # 创建堆叠窗口
+        self.stacked_widget = QStackedWidget()
 
-        # 客户端设置标签页
-        client_tab = self.create_client_tab()
-        tab_widget.addTab(client_tab, "客户端设置")
+        # 系统设置页面
+        self.system_widget = self.create_system_settings_widget()
+        system_scroll = QScrollArea()
+        system_scroll.setWidget(self.system_widget)
+        system_scroll.setWidgetResizable(True)
+        self.stacked_widget.addWidget(system_scroll)
 
-        # 监控设置标签页
-        monitor_tab = self.create_monitor_tab()
-        tab_widget.addTab(monitor_tab, "监控设置")
+        # 课程设置页面
+        self.course_widget = self.create_course_tab()
+        course_scroll = QScrollArea()
+        course_scroll.setWidget(self.course_widget)
+        course_scroll.setWidgetResizable(True)
+        self.stacked_widget.addWidget(course_scroll)
 
-        # 通知设置标签页
-        notification_tab = self.create_notification_tab()
-        tab_widget.addTab(notification_tab, "通知设置")
-
-        # 验证码识别设置标签页
-        apikey_tab = self.create_apikey_tab()
-        tab_widget.addTab(apikey_tab, "验证码识别")
-
-        # 课程设置标签页
-        course_tab = self.create_course_tab()
-        tab_widget.addTab(course_tab, "课程设置")
+        layout.addWidget(self.stacked_widget)
 
         # 保存按钮
         save_btn = QPushButton("保存所有设置")
@@ -216,7 +274,6 @@ class ConfigEditor(QWidget):
         # 已启用自动保存，手动保存可弃用
         save_btn.hide()
 
-        layout.addWidget(tab_widget)
         layout.addWidget(save_btn)
 
         # 添加保存状态标签
@@ -567,21 +624,27 @@ class ConfigEditor(QWidget):
     def create_label_with_tooltip(self, text, tooltip):
         hbox = QHBoxLayout()
         label = QLabel(text)
-        # 创建提示标签（使用?图标）
-        tooltip_label = QLabel("?")
-        tooltip_label.setToolTip(tooltip)
-        # 设置样式，使?看起来像提示图标
-        tooltip_label.setStyleSheet(
-            "QLabel { color: blue; font-weight: bold; }")
-        tooltip_label.setCursor(Qt.CursorShape.PointingHandCursor)
-
-        # 使用图标的方法
-        # tooltip_label.setPixmap(help_icon.pixmap(QSize(16, 16)))  # 设置图标大小
-        # tooltip_label.setToolTip(tooltip)
-        # tooltip_label.setCursor(Qt.CursorShape.PointingHandCursor)
+        # 创建帮助按钮
+        help_btn = QPushButton("?")
+        help_btn.setFixedSize(20, 20)
+        help_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #17a2b8;
+                color: white;
+                border: none;
+                border-radius: 10px;
+                font-size: 10pt;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #138496;
+            }
+        """)
+        help_btn.setToolTip("点击查看详细提示")
+        help_btn.clicked.connect(lambda: QMessageBox.information(self, "填写提示", tooltip))
     
         hbox.addWidget(label)
-        hbox.addWidget(tooltip_label)
+        hbox.addWidget(help_btn)
         hbox.addStretch()  # 添加弹性空间
         hbox.setContentsMargins(0, 0, 0, 0)
 
@@ -589,10 +652,46 @@ class ConfigEditor(QWidget):
         container.setLayout(hbox)
         return container
 
+    def create_system_settings_widget(self):
+        """创建系统设置页面"""
+        widget = QWidget()
+        layout = QVBoxLayout()
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(20)  # 增加行距，避免堆在一起
+
+        # 用户设置
+        user_tab = self.create_user_tab()
+        layout.addWidget(user_tab)
+
+        # 客户端设置
+        client_tab = self.create_client_tab()
+        layout.addWidget(client_tab)
+
+        # 监控设置
+        monitor_tab = self.create_monitor_tab()
+        layout.addWidget(monitor_tab)
+
+        # 通知设置
+        notification_tab = self.create_notification_tab()
+        layout.addWidget(notification_tab)
+
+        # 验证码识别设置
+        apikey_tab = self.create_apikey_tab()
+        layout.addWidget(apikey_tab)
+
+        widget.setLayout(layout)
+        return widget
+
     def create_user_tab(self):
         """创建用户设置标签页"""
         widget = QWidget()
-        layout = QFormLayout()
+        layout = QVBoxLayout()
+        layout.setContentsMargins(10, 10, 10, 10)
+
+        group = QGroupBox("用户认证设置")
+        group_layout = QFormLayout()
+        group_layout.setContentsMargins(10, 10, 10, 10)
+        group_layout.setSpacing(10)
 
         self.student_id_edit = QLineEdit()
         self.password_edit = QLineEdit()
@@ -601,11 +700,11 @@ class ConfigEditor(QWidget):
         self.identity_combo = QComboBox()
         self.identity_combo.addItems(["bzx", "bfx"])
 
-        layout.addRow(self.create_label_with_tooltip(
+        group_layout.addRow(self.create_label_with_tooltip(
             "IAAA账号:", "请输入您的IAAA认证账号，如: 2500011111"), self.student_id_edit)
-        layout.addRow(self.create_label_with_tooltip(
+        group_layout.addRow(self.create_label_with_tooltip(
             "IAAA密码:", "请输入您的IAAA认证密码"), self.password_edit)
-        layout.addRow(self.create_label_with_tooltip(
+        group_layout.addRow(self.create_label_with_tooltip(
             "是否为双学位账号", "只要你的账号在登录时需要选择“主修/辅双”身份，此处就需要勾选"), self.dual_degree_check)
         # 创建身份选择容器（初始隐藏）
         self.identity_container = QWidget()
@@ -614,9 +713,12 @@ class ConfigEditor(QWidget):
             "身份", "双学位账号登录身份，bzx主修，bfx辅双"), self.identity_combo)
         self.identity_container.setLayout(identity_layout)
         self.identity_container.setVisible(False)  # 初始隐藏
-        layout.addRow("",self.identity_container)  # 添加身份容器
+        group_layout.addRow("",self.identity_container)  # 添加身份容器
         # 连接双学位复选框状态改变信号
         self.dual_degree_check.stateChanged.connect(self.toggle_identity_visibility)
+
+        group.setLayout(group_layout)
+        layout.addWidget(group)
 
         widget.setLayout(layout)
         return widget
@@ -628,7 +730,13 @@ class ConfigEditor(QWidget):
     def create_client_tab(self):
         """创建客户端设置标签页"""
         widget = QWidget()
-        layout = QFormLayout()
+        layout = QVBoxLayout()
+        layout.setContentsMargins(10, 10, 10, 10)
+
+        group = QGroupBox("客户端参数设置")
+        group_layout = QFormLayout()
+        group_layout.setContentsMargins(10, 10, 10, 10)
+        group_layout.setSpacing(10)
 
         self.supply_cancel_page_spin = QSpinBox()
         self.supply_cancel_page_spin.setRange(1, 100)
@@ -653,28 +761,31 @@ class ConfigEditor(QWidget):
         self.debug_request_check = QCheckBox()
         self.debug_dump_check = QCheckBox()
 
-        layout.addRow(self.create_label_with_tooltip(
+        group_layout.addRow(self.create_label_with_tooltip(
             "补退选页数:", "待刷课程处在“补退选”选课计划的第几页"), self.supply_cancel_page_spin)
-        layout.addRow(self.create_label_with_tooltip(
+        group_layout.addRow(self.create_label_with_tooltip(
             "刷新间隔(秒):", "每次循环后的暂停时间"), self.refresh_interval_spin)
-        layout.addRow(self.create_label_with_tooltip(
+        group_layout.addRow(self.create_label_with_tooltip(
             "随机偏差(秒):", "偏移量分数，如果设置为 <= 0 的值，则视为 0"), self.refresh_random_deviation_spin)
-        layout.addRow(self.create_label_with_tooltip(
+        group_layout.addRow(self.create_label_with_tooltip(
             "IAAA超时(秒):", "IAAA 客户端最长请求超时"), self.iaaa_timeout_spin)
-        layout.addRow(self.create_label_with_tooltip(
+        group_layout.addRow(self.create_label_with_tooltip(
             "选课超时(秒):", "elective 客户端最长请求超时"), self.elective_timeout_spin)
-        layout.addRow(self.create_label_with_tooltip(
+        group_layout.addRow(self.create_label_with_tooltip(
             "连接池大小:", "最多同时保持几个 elective 的有效会话（同一 IP 下最多为 5）"), self.pool_size_spin)
-        layout.addRow(self.create_label_with_tooltip(
+        group_layout.addRow(self.create_label_with_tooltip(
             "最大生命周期(秒):", "elvetive 客户端的存活时间，设置为 -1 则存活时间为无限长"), self.max_life_spin)
-        layout.addRow(self.create_label_with_tooltip(
+        group_layout.addRow(self.create_label_with_tooltip(
             "登录循环间隔(秒):", "IAAA 登录线程每回合结束后的等待时间"), self.login_loop_interval_spin)
-        layout.addRow(self.create_label_with_tooltip(
+        group_layout.addRow(self.create_label_with_tooltip(
             "打印互斥规则:", "是否在每次循环时打印完整的互斥规则列表"), self.print_mutex_check)
-        layout.addRow(self.create_label_with_tooltip(
+        group_layout.addRow(self.create_label_with_tooltip(
             "调试请求:", "是否打印请求细节"), self.debug_request_check)
-        layout.addRow(self.create_label_with_tooltip(
+        group_layout.addRow(self.create_label_with_tooltip(
             "调试转储:", "是否将重要接口的请求以日志的形式记录到本地（包括补退选页、提交选课等接口）"), self.debug_dump_check)
+
+        group.setLayout(group_layout)
+        layout.addWidget(group)
 
         widget.setLayout(layout)
         return widget
@@ -682,15 +793,24 @@ class ConfigEditor(QWidget):
     def create_monitor_tab(self):
         """创建监控设置标签页"""
         widget = QWidget()
-        layout = QFormLayout()
+        layout = QVBoxLayout()
+        layout.setContentsMargins(10, 10, 10, 10)
+
+        group = QGroupBox("监控参数设置")
+        group_layout = QFormLayout()
+        group_layout.setContentsMargins(10, 10, 10, 10)
+        group_layout.setSpacing(10)
 
         self.monitor_host_edit = QLineEdit()
         self.monitor_port_spin = QSpinBox()
         self.monitor_port_spin.setRange(1, 65535)
 
-        layout.addRow("提示", QLabel("如非专业人员，请勿修改此页配置！"))
-        layout.addRow("监控主机:", self.monitor_host_edit)
-        layout.addRow("监控端口:", self.monitor_port_spin)
+        group_layout.addRow("提示", QLabel("如非专业人员，请勿修改此页配置！"))
+        group_layout.addRow("监控主机:", self.monitor_host_edit)
+        group_layout.addRow("监控端口:", self.monitor_port_spin)
+
+        group.setLayout(group_layout)
+        layout.addWidget(group)
 
         widget.setLayout(layout)
         return widget
@@ -698,15 +818,21 @@ class ConfigEditor(QWidget):
     def create_notification_tab(self):
         """创建通知设置标签页"""
         widget = QWidget()
-        layout = QFormLayout()
+        layout = QVBoxLayout()
+        layout.setContentsMargins(10, 10, 10, 10)
+
+        group = QGroupBox("通知设置")
+        group_layout = QFormLayout()
+        group_layout.setContentsMargins(10, 10, 10, 10)
+        group_layout.setSpacing(10)
 
         self.yanxx_voice_check = QCheckBox()
         self.yanxx_weixin_check = QCheckBox()
         self.yanxx_weixin_user_edit = QLineEdit()
 
-        layout.addRow(self.create_label_with_tooltip(
+        group_layout.addRow(self.create_label_with_tooltip(
             "语音提醒：", "是否开启语音提醒"), self.yanxx_voice_check)
-        layout.addRow(self.create_label_with_tooltip(
+        group_layout.addRow(self.create_label_with_tooltip(
             "微信提醒与控制：", "是否开启微信提醒与控制"), self.yanxx_weixin_check)
          # 创建微信昵称容器（初始隐藏）
         self.yanxx_weixin_user_container = QWidget()
@@ -735,9 +861,12 @@ class ConfigEditor(QWidget):
         yanxx_weixin_user_layout.addRow(test_button)
         self.yanxx_weixin_user_container.setLayout(yanxx_weixin_user_layout)
         self.yanxx_weixin_user_container.setVisible(False)  # 初始隐藏
-        layout.addRow("",self.yanxx_weixin_user_container)  # 添加微信昵称容器
+        group_layout.addRow("",self.yanxx_weixin_user_container)  # 添加微信昵称容器
         # 连接微信监听状态复选框状态改变信号
         self.yanxx_weixin_check.stateChanged.connect(self.yanxx_weixin_user_visibility)
+
+        group.setLayout(group_layout)
+        layout.addWidget(group)
 
         widget.setLayout(layout)
         return widget
@@ -879,66 +1008,17 @@ class ConfigEditor(QWidget):
         widget = QWidget()
         layout = QVBoxLayout()
 
-        # 状态栏和清空按钮的水平布局
-        stats_layout = QHBoxLayout()
-        
-        self.config_stats_label = QLabel("配置统计：0 个课程，0 个互斥规则，0 个延迟规则")
-        self.config_stats_label.setStyleSheet("""
-            QLabel {
-                background-color: #e9ecef;
-                border: 1px solid #adb5bd;
-                border-radius: 6px;
-                padding: 10px 15px;
-                margin: 5px;
-                font-size: 10pt;
-                color: #495057;
-            }
-        """)
-        stats_layout.addWidget(self.config_stats_label)
-        
-        # 添加清空配置按钮
-        clear_btn = QPushButton("删除所有课程配置")
-        clear_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #dc3545;
-                color: white;
-                border: none;
-                padding: 8px 12px;
-                margin: 5px;
-                border-radius: 6px;
-                font-size: 10pt;
-                font-weight: 500;
-                max-width: 140px;
-            }
-            QPushButton:hover {
-                background-color: #c82333;
-            }
-            QPushButton:pressed {
-                background-color: #bd2130;
-            }
-        """)
-        clear_btn.setToolTip("清空所有课程、互斥规则和延迟规则")
-        clear_btn.clicked.connect(self.clear_all_course_configs)
-        stats_layout.addWidget(clear_btn)
-        
-        layout.addLayout(stats_layout)  # 添加水平布局
-
-        # 创建标签页
-        course_tab_widget = QTabWidget()
-
-        # 课程标签页
+        # 课程部分
         course_tab = self.create_course_list_tab()
-        course_tab_widget.addTab(course_tab, "课程")
+        layout.addWidget(course_tab)
 
-        # 互斥规则标签页
+        # 互斥规则部分
         mutex_tab = self.create_mutex_list_tab()
-        course_tab_widget.addTab(mutex_tab, "互斥规则")
+        layout.addWidget(mutex_tab)
 
-        # 延迟规则标签页
+        # 延迟规则部分
         delay_tab = self.create_delay_list_tab()
-        course_tab_widget.addTab(delay_tab, "延迟规则")
-
-        layout.addWidget(course_tab_widget)
+        layout.addWidget(delay_tab)
 
         widget.setLayout(layout)
         return widget
@@ -1147,23 +1227,28 @@ class ConfigEditor(QWidget):
 
     def create_course_item(self, course_id, course_name, class_no, school):
         """创建课程条目组件"""
-        item_widget = QWidget()
-        item_widget.setFixedHeight(60)  # 固定高度
+        item_widget = QFrame()
+        item_widget.setFrameStyle(QFrame.Shape.Box)
+        item_widget.setLineWidth(1)
+        item_widget.setStyleSheet("""
+            QFrame {
+                background-color: #ffffff;
+                border: 1px solid #dee2e6;
+                border-radius: 8px;
+                margin: 5px;
+            }
+        """)
         item_layout = QHBoxLayout()
+        item_layout.setContentsMargins(10, 10, 10, 10)
 
         # 课程信息标签
         info_label = QLabel(
-            f"ID: {course_id}, 课程名: {course_name}, 班号: {class_no}, 开课院系: {school})")
-        info_label.setStyleSheet("""
-            QLabel {
-                background-color: #f5f5f5;
-                border: 1px solid #ddd;
-                border-radius: 3px;
-                padding: 8px;
-                margin: 2px;
-            }
-        """)
+            f"<b>ID:</b> {course_id}<br><b>课程名:</b> {course_name}<br><b>班号:</b> {class_no}<br><b>开课院系:</b> {school}")
+        info_label.setStyleSheet("QLabel { color: #495057; }")
+        info_label.setWordWrap(True)
 
+        # 按钮容器
+        button_layout = QVBoxLayout()
         # 编辑按钮
         edit_btn = QPushButton("编辑")
         edit_btn.clicked.connect(lambda: self.edit_course(
@@ -1174,8 +1259,8 @@ class ConfigEditor(QWidget):
                 color: #212529;
                 border: none;
                 padding: 6px 12px;
-                border-radius: 3px;
-                min-width: 60px;
+                border-radius: 4px;
+                font-size: 10pt;
             }
             QPushButton:hover {
                 background-color: #e0a800;
@@ -1191,40 +1276,48 @@ class ConfigEditor(QWidget):
                 color: white;
                 border: none;
                 padding: 6px 12px;
-                border-radius: 3px;
-                min-width: 60px;
+                border-radius: 4px;
+                font-size: 10pt;
             }
             QPushButton:hover {
                 background-color: #c82333;
             }
         """)
 
-        item_layout.addWidget(info_label)
-        item_layout.addWidget(edit_btn)
-        item_layout.addWidget(delete_btn)
+        button_layout.addWidget(edit_btn)
+        button_layout.addWidget(delete_btn)
+        button_layout.addStretch()
+
+        item_layout.addWidget(info_label, 1)
+        item_layout.addLayout(button_layout)
 
         item_widget.setLayout(item_layout)
         return item_widget
 
     def create_mutex_item(self, mutex_id, courses):
         """创建互斥规则条目组件"""
-        item_widget = QWidget()
-        item_widget.setFixedHeight(60)  # 固定高度
+        item_widget = QFrame()
+        item_widget.setFrameStyle(QFrame.Shape.Box)
+        item_widget.setLineWidth(1)
+        item_widget.setStyleSheet("""
+            QFrame {
+                background-color: #fff3cd;
+                border: 1px solid #ffeaa7;
+                border-radius: 8px;
+                margin: 5px;
+            }
+        """)
         item_layout = QHBoxLayout()
+        item_layout.setContentsMargins(10, 10, 10, 10)
 
         # 互斥规则信息标签
         courses_text = ", ".join(courses)
-        info_label = QLabel(f"{mutex_id}: {courses_text}")
-        info_label.setStyleSheet("""
-            QLabel {
-                background-color: #fff3cd;
-                border: 1px solid #ffeaa7;
-                border-radius: 3px;
-                padding: 8px;
-                margin: 2px;
-            }
-        """)
+        info_label = QLabel(f"<b>{mutex_id}:</b> {courses_text}")
+        info_label.setStyleSheet("QLabel { color: #856404; }")
+        info_label.setWordWrap(True)
 
+        # 按钮容器
+        button_layout = QVBoxLayout()
         # 编辑按钮
         edit_btn = QPushButton("编辑")
         edit_btn.clicked.connect(
@@ -1235,8 +1328,8 @@ class ConfigEditor(QWidget):
                 color: #212529;
                 border: none;
                 padding: 6px 12px;
-                border-radius: 3px;
-                min-width: 60px;
+                border-radius: 4px;
+                font-size: 10pt;
             }
             QPushButton:hover {
                 background-color: #e0a800;
@@ -1252,40 +1345,48 @@ class ConfigEditor(QWidget):
                 color: white;
                 border: none;
                 padding: 6px 12px;
-                border-radius: 3px;
-                min-width: 60px;
+                border-radius: 4px;
+                font-size: 10pt;
             }
             QPushButton:hover {
                 background-color: #c82333;
             }
         """)
 
-        item_layout.addWidget(info_label)
-        item_layout.addWidget(edit_btn)
-        item_layout.addWidget(delete_btn)
+        button_layout.addWidget(edit_btn)
+        button_layout.addWidget(delete_btn)
+        button_layout.addStretch()
+
+        item_layout.addWidget(info_label, 1)
+        item_layout.addLayout(button_layout)
 
         item_widget.setLayout(item_layout)
         return item_widget
 
     def create_delay_item(self, delay_id, course_id, threshold):
         """创建延迟规则条目组件"""
-        item_widget = QWidget()
-        item_widget.setFixedHeight(60)  # 固定高度
+        item_widget = QFrame()
+        item_widget.setFrameStyle(QFrame.Shape.Box)
+        item_widget.setLineWidth(1)
+        item_widget.setStyleSheet("""
+            QFrame {
+                background-color: #d4edda;
+                border: 1px solid #c3e6cb;
+                border-radius: 8px;
+                margin: 5px;
+            }
+        """)
         item_layout = QHBoxLayout()
+        item_layout.setContentsMargins(10, 10, 10, 10)
 
         # 延迟规则信息标签
         info_label = QLabel(
-            f"{delay_id}: 课程 {course_id} 在人数达到 {threshold} 后开始选课")
-        info_label.setStyleSheet("""
-            QLabel {
-                background-color: #d4edda;
-                border: 1px solid #c3e6cb;
-                border-radius: 3px;
-                padding: 8px;
-                margin: 2px;
-            }
-        """)
+            f"<b>{delay_id}:</b> 课程 {course_id} 在人数达到 {threshold} 后开始选课")
+        info_label.setStyleSheet("QLabel { color: #155724; }")
+        info_label.setWordWrap(True)
 
+        # 按钮容器
+        button_layout = QVBoxLayout()
         # 编辑按钮
         edit_btn = QPushButton("编辑")
         edit_btn.clicked.connect(lambda: self.edit_delay_rule(
@@ -1296,8 +1397,8 @@ class ConfigEditor(QWidget):
                 color: #212529;
                 border: none;
                 padding: 6px 12px;
-                border-radius: 3px;
-                min-width: 60px;
+                border-radius: 4px;
+                font-size: 10pt;
             }
             QPushButton:hover {
                 background-color: #e0a800;
@@ -1313,17 +1414,20 @@ class ConfigEditor(QWidget):
                 color: white;
                 border: none;
                 padding: 6px 12px;
-                border-radius: 3px;
-                min-width: 60px;
+                border-radius: 4px;
+                font-size: 10pt;
             }
             QPushButton:hover {
                 background-color: #c82333;
             }
         """)
 
-        item_layout.addWidget(info_label)
-        item_layout.addWidget(edit_btn)
-        item_layout.addWidget(delete_btn)
+        button_layout.addWidget(edit_btn)
+        button_layout.addWidget(delete_btn)
+        button_layout.addStretch()
+
+        item_layout.addWidget(info_label, 1)
+        item_layout.addLayout(button_layout)
 
         item_widget.setLayout(item_layout)
         return item_widget
@@ -2241,3 +2345,18 @@ class ConfigEditor(QWidget):
                             self.delay_list_layout.removeItem(layout_item)
                             continue
             i += 1
+
+    def switch_view(self):
+        """切换系统设置和课程设置视图"""
+        current_index = self.stacked_widget.currentIndex()
+        if current_index == 0:
+            self.stacked_widget.setCurrentIndex(1)
+            self.switch_button.setText("切换到系统设置")
+            self.config_stats_label.show()
+            self.clear_btn.show()
+            self.update_config_stats()  # 更新统计信息
+        else:
+            self.stacked_widget.setCurrentIndex(0)
+            self.switch_button.setText("切换到课程设置")
+            self.config_stats_label.hide()
+            self.clear_btn.hide()
