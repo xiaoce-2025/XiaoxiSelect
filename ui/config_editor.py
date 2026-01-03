@@ -35,6 +35,94 @@ class ConfigEditor(QWidget):
         self.last_save_time = None
         self.autosave_enabled = True
 
+        # 添加课程按钮
+        self.add_course_btn = QPushButton("添加课程")
+        self.add_course_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #007bff;
+                color: white;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 6px;
+                font-size: 11pt;
+                font-weight: 500;
+            }
+            QPushButton:hover {
+                background-color: #0056b3;
+            }
+            QPushButton:pressed {
+                background-color: #004085;
+            }
+        """)
+        self.add_course_btn.clicked.connect(self.add_course)
+        self.add_course_btn.hide()
+
+        # 快捷添加按钮
+        self.fast_add_course_btn = QPushButton("快捷输入")
+        self.fast_add_course_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #28a745;
+                color: white;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 6px;
+                font-size: 11pt;
+                font-weight: 500;
+            }
+            QPushButton:hover {
+                background-color: #218838;
+            }
+            QPushButton:pressed {
+                background-color: #1e7e34;
+            }
+        """)
+        self.fast_add_course_btn.clicked.connect(self.fast_add_course)
+        self.fast_add_course_btn.hide()
+
+        # 添加互斥规则
+        self.add_mutex_btn = QPushButton("添加互斥规则")
+        self.add_mutex_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #fd7e14;
+                color: white;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 6px;
+                font-size: 11pt;
+                font-weight: 500;
+            }
+            QPushButton:hover {
+                background-color: #e8590c;
+            }
+            QPushButton:pressed {
+                background-color: #d9480f;
+            }
+        """)
+        self.add_mutex_btn.clicked.connect(self.add_mutex_rule)
+        self.add_mutex_btn.hide()
+
+        # 添加延迟规则
+        self.add_delay_btn = QPushButton("添加延迟规则")
+        self.add_delay_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #20c997;
+                color: white;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 6px;
+                font-size: 11pt;
+                font-weight: 500;
+            }
+            QPushButton:hover {
+                background-color: #17a2b8;
+            }
+            QPushButton:pressed {
+                background-color: #138496;
+            }
+        """)
+        self.add_delay_btn.clicked.connect(self.add_delay_rule)
+        self.add_delay_btn.hide()
+
         # 创建配置统计标签和删除按钮
         self.config_stats_label = QLabel("配置统计：0 个课程，0 个互斥规则，0 个延迟规则")
         self.config_stats_label.setStyleSheet("""
@@ -143,7 +231,18 @@ class ConfigEditor(QWidget):
                 border-radius: 3px;
                 background: #ffffff;
             }
+            QCheckBox {
+                spacing: 8px;
+            }
+            QCheckBox::indicator {
+                width: 16px;
+                height: 16px;
+                border: 1px solid #ced4da;
+                border-radius: 3px;
+                background: #ffffff;
+            }
             QCheckBox::indicator:checked {
+                color: #000000;
                 background-color: #007bff;
                 border-color: #007bff;
             }
@@ -156,7 +255,6 @@ class ConfigEditor(QWidget):
                 border-radius: 6px;
                 margin-top: 1ex;
                 background: #f8f9fa;
-                           
             }
             QGroupBox::title {
                 subcontrol-origin: margin;
@@ -226,6 +324,10 @@ class ConfigEditor(QWidget):
         # 顶部布局：右上角按钮
         top_layout = QHBoxLayout()
         top_layout.addStretch()
+        top_layout.addWidget(self.add_course_btn)
+        top_layout.addWidget(self.fast_add_course_btn)
+        top_layout.addWidget(self.add_mutex_btn)
+        top_layout.addWidget(self.add_delay_btn)
         top_layout.addWidget(self.config_stats_label)
         top_layout.addWidget(self.clear_btn)
         top_layout.addWidget(self.switch_button)
@@ -1029,7 +1131,7 @@ class ConfigEditor(QWidget):
         layout = QVBoxLayout()
 
         # 说明标签
-        info_label = QLabel("课程配置：每个课程包含ID、名称、班级号和学院信息。\n在此添加要刷取的课程")
+        info_label = QLabel("课程配置：每个课程包含ID、名称、班级号和学院信息。      在此添加要刷取的课程")
         info_label.setStyleSheet("""
             QLabel {
                 background-color: #e7f3ff;
@@ -1056,51 +1158,6 @@ class ConfigEditor(QWidget):
         scroll_area.setMinimumHeight(300)
 
         layout.addWidget(scroll_area)
-
-        # 添加课程按钮
-        button_layout = QHBoxLayout()
-        add_course_btn = QPushButton("添加课程")
-        add_course_btn.clicked.connect(self.add_course)
-        add_course_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #007bff;
-                color: white;
-                border: none;
-                padding: 10px 20px;
-                border-radius: 6px;
-                font-size: 11pt;
-                font-weight: 500;
-            }
-            QPushButton:hover {
-                background-color: #0056b3;
-            }
-            QPushButton:pressed {
-                background-color: #004085;
-            }
-        """)
-        button_layout.addWidget(add_course_btn)
-        fast_add_course_btn = QPushButton("快捷输入")
-        fast_add_course_btn.clicked.connect(self.fast_add_course)
-        fast_add_course_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #28a745;
-                color: white;
-                border: none;
-                padding: 10px 20px;
-                border-radius: 6px;
-                font-size: 11pt;
-                font-weight: 500;
-            }
-            QPushButton:hover {
-                background-color: #218838;
-            }
-            QPushButton:pressed {
-                background-color: #1e7e34;
-            }
-        """)
-        button_layout.addWidget(fast_add_course_btn)
-
-        layout.addLayout(button_layout)
 
         widget.setLayout(layout)
         return widget
@@ -1139,29 +1196,6 @@ class ConfigEditor(QWidget):
 
         layout.addWidget(scroll_area)
 
-        # 添加互斥规则按钮
-        add_mutex_btn = QPushButton("添加互斥规则")
-        add_mutex_btn.clicked.connect(self.add_mutex_rule)
-        add_mutex_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #fd7e14;
-                color: white;
-                border: none;
-                padding: 10px 20px;
-                border-radius: 6px;
-                font-size: 11pt;
-                font-weight: 500;
-            }
-            QPushButton:hover {
-                background-color: #e8590c;
-            }
-            QPushButton:pressed {
-                background-color: #d9480f;
-            }
-        """)
-
-        layout.addWidget(add_mutex_btn)
-
         widget.setLayout(layout)
         return widget
 
@@ -1199,29 +1233,6 @@ class ConfigEditor(QWidget):
 
         layout.addWidget(scroll_area)
 
-        # 添加延迟规则按钮
-        add_delay_btn = QPushButton("添加延迟规则")
-        add_delay_btn.clicked.connect(self.add_delay_rule)
-        add_delay_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #20c997;
-                color: white;
-                border: none;
-                padding: 10px 20px;
-                border-radius: 6px;
-                font-size: 11pt;
-                font-weight: 500;
-            }
-            QPushButton:hover {
-                background-color: #17a2b8;
-            }
-            QPushButton:pressed {
-                background-color: #138496;
-            }
-        """)
-
-        layout.addWidget(add_delay_btn)
-
         widget.setLayout(layout)
         return widget
 
@@ -1233,9 +1244,9 @@ class ConfigEditor(QWidget):
         item_widget.setStyleSheet("""
             QFrame {
                 background-color: #ffffff;
-                border: 1px solid #dee2e6;
+                border: 0px solid #dee2e6;
                 border-radius: 8px;
-                margin: 5px;
+                margin: 0px;
             }
         """)
         item_layout = QHBoxLayout()
@@ -1243,12 +1254,12 @@ class ConfigEditor(QWidget):
 
         # 课程信息标签
         info_label = QLabel(
-            f"<b>ID:</b> {course_id}<br><b>课程名:</b> {course_name}<br><b>班号:</b> {class_no}<br><b>开课院系:</b> {school}")
+            f"<b>ID:</b> {course_id}&nbsp;&nbsp;&nbsp;<b>课程名:</b> {course_name}&nbsp;&nbsp;&nbsp;<b>班号:</b> {class_no}&nbsp;&nbsp;&nbsp;<b>开课院系:</b> {school}")
         info_label.setStyleSheet("QLabel { color: #495057; }")
         info_label.setWordWrap(True)
 
         # 按钮容器
-        button_layout = QVBoxLayout()
+        button_layout = QHBoxLayout()
         # 编辑按钮
         edit_btn = QPushButton("编辑")
         edit_btn.clicked.connect(lambda: self.edit_course(
@@ -2354,9 +2365,17 @@ class ConfigEditor(QWidget):
             self.switch_button.setText("切换到系统设置")
             self.config_stats_label.show()
             self.clear_btn.show()
+            self.add_course_btn.show()
+            self.fast_add_course_btn.show()
+            self.add_mutex_btn.show()
+            self.add_delay_btn.show()
             self.update_config_stats()  # 更新统计信息
         else:
             self.stacked_widget.setCurrentIndex(0)
             self.switch_button.setText("切换到课程设置")
             self.config_stats_label.hide()
             self.clear_btn.hide()
+            self.add_course_btn.hide()
+            self.fast_add_course_btn.hide()
+            self.add_mutex_btn.hide()
+            self.add_delay_btn.hide()
