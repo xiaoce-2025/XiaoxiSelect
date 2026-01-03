@@ -6,7 +6,7 @@
 
 """Console窗口类"""
 
-from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout
+from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout,QPushButton
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QPalette
 

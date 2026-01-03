@@ -47,7 +47,7 @@ class UpdateChecker:
             error_message: 失败时的错误信息
         """
         try:
-            logger.info(f"正在从Gist获取更新日志: {self.gist_url}")
+            logger.info(f"正在拉取更新日志")
             
             # 发送HTTP请求
             response = requests.get(

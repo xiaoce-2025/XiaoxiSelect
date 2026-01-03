@@ -39,6 +39,125 @@ class ConfigEditor(QWidget):
         self.load_configs()
 
     def init_ui(self):
+        # 应用现代样式表
+        self.setStyleSheet("""
+            QWidget {
+                background-color: #f8f9fa;
+                font-family: 'Segoe UI', Arial, sans-serif;
+                font-size: 10pt;
+            }
+            QTabWidget::pane {
+                border: 1px solid #dee2e6;
+                background: #ffffff;
+                border-radius: 8px;
+            }
+            QTabBar::tab {
+                background: #e9ecef;
+                border: 1px solid #dee2e6;
+                padding: 10px 20px;
+                margin-right: 2px;
+                border-radius: 6px 6px 0 0;
+                color: #495057;
+            }
+            QTabBar::tab:selected {
+                background: #ffffff;
+                border-bottom: 2px solid #007bff;
+                color: #007bff;
+                font-weight: bold;
+            }
+            QTabBar::tab:hover {
+                background: #f8f9fa;
+            }
+            QPushButton {
+                background-color: #007bff;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 6px;
+                font-size: 10pt;
+                font-weight: 500;
+            }
+            QPushButton:hover {
+                background-color: #0056b3;
+            }
+            QPushButton:pressed {
+                background-color: #004085;
+            }
+            QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox {
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+                padding: 6px 8px;
+                background: #ffffff;
+                font-size: 10pt;
+            }
+            QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {
+                border-color: #007bff;
+                outline: none;
+            }
+            QCheckBox {
+                spacing: 8px;
+            }
+            QCheckBox::indicator {
+                width: 16px;
+                height: 16px;
+                border: 1px solid #ced4da;
+                border-radius: 3px;
+                background: #ffffff;
+            }
+            QCheckBox::indicator:checked {
+                background-color: #007bff;
+                border-color: #007bff;
+            }
+            QLabel {
+                color: #495057;
+            }
+            QGroupBox {
+                font-weight: bold;
+                border: 2px solid #dee2e6;
+                border-radius: 6px;
+                margin-top: 1ex;
+                background: #f8f9fa;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 10px 0 10px;
+                color: #495057;
+            }
+            QScrollArea {
+                border: 1px solid #dee2e6;
+                border-radius: 6px;
+                background: #ffffff;
+            }
+            QTableWidget {
+                gridline-color: #dee2e6;
+                background: #ffffff;
+                border: 1px solid #dee2e6;
+                border-radius: 6px;
+            }
+            QTableWidget::item {
+                padding: 8px;
+                border-bottom: 1px solid #f1f3f4;
+            }
+            QTableWidget::item:selected {
+                background: #e3f2fd;
+            }
+            QRadioButton {
+                spacing: 8px;
+            }
+            QRadioButton::indicator {
+                width: 16px;
+                height: 16px;
+                border: 1px solid #ced4da;
+                border-radius: 8px;
+                background: #ffffff;
+            }
+            QRadioButton::indicator:checked {
+                background-color: #007bff;
+                border-color: #007bff;
+            }
+        """)
+
         layout = QVBoxLayout()
 
         # 创建标签页
@@ -78,15 +197,19 @@ class ConfigEditor(QWidget):
         save_btn.clicked.connect(self.save_all_configs)
         save_btn.setStyleSheet("""
             QPushButton {
-                background-color: #4CAF50;
+                background-color: #28a745;
                 color: white;
                 border: none;
-                padding: 10px;
-                font-size: 14px;
-                border-radius: 5px;
+                padding: 10px 20px;
+                font-size: 12pt;
+                border-radius: 6px;
+                font-weight: 500;
             }
             QPushButton:hover {
-                background-color: #45a049;
+                background-color: #218838;
+            }
+            QPushButton:pressed {
+                background-color: #1e7e34;
             }
         """)
 
@@ -100,9 +223,13 @@ class ConfigEditor(QWidget):
         self.save_status_label = QLabel("成功加载全部配置")
         self.save_status_label.setStyleSheet("""
             QLabel {
-                color: #4CAF50;
-                font-size: 12px;
-                padding: 5px;
+                color: #28a745;
+                font-size: 10pt;
+                padding: 8px 12px;
+                background-color: #d4edda;
+                border: 1px solid #c3e6cb;
+                border-radius: 4px;
+                margin: 5px 0;
             }
         """)
         layout.addWidget(self.save_status_label)
@@ -384,21 +511,29 @@ class ConfigEditor(QWidget):
         current_time = datetime.now().strftime("%H:%M:%S")
         
         if error:
-            status_text = f"! {message} [{current_time}]"
+            status_text = f"⚠ {message} [{current_time}]"
             self.save_status_label.setStyleSheet("""
                 QLabel {
-                    color: #F44336;
-                    font-size: 12px;
-                    padding: 5px;
+                    color: #dc3545;
+                    font-size: 10pt;
+                    padding: 8px 12px;
+                    background-color: #f8d7da;
+                    border: 1px solid #f5c6cb;
+                    border-radius: 4px;
+                    margin: 5px 0;
                 }
             """)
         else:
             status_text = f"✓ {message} [{current_time}]"
             self.save_status_label.setStyleSheet("""
                 QLabel {
-                    color: #4CAF50;
-                    font-size: 12px;
-                    padding: 5px;
+                    color: #155724;
+                    font-size: 10pt;
+                    padding: 8px 12px;
+                    background-color: #d4edda;
+                    border: 1px solid #c3e6cb;
+                    border-radius: 4px;
+                    margin: 5px 0;
                 }
             """)
         
@@ -416,9 +551,13 @@ class ConfigEditor(QWidget):
             self.save_status_label.setText(f"最后保存于: {last_save_str}")
             self.save_status_label.setStyleSheet("""
                 QLabel {
-                    color: #666666;
-                    font-size: 12px;
-                    padding: 5px;
+                    color: #6c757d;
+                    font-size: 10pt;
+                    padding: 8px 12px;
+                    background-color: #f8f9fa;
+                    border: 1px solid #dee2e6;
+                    border-radius: 4px;
+                    margin: 5px 0;
                 }
             """)
 
@@ -577,15 +716,19 @@ class ConfigEditor(QWidget):
         test_button = QPushButton("测试通知功能")
         test_button.setStyleSheet("""
             QPushButton {
-                background-color: #2196F3;
+                background-color: #17a2b8;
                 color: white;
                 border: none;
-                padding: 10px;
-                border-radius: 5px;
-                font-size: 14px;
+                padding: 10px 15px;
+                border-radius: 6px;
+                font-size: 11pt;
+                font-weight: 500;
             }
             QPushButton:hover {
-                background-color: #1976D2;
+                background-color: #138496;
+            }
+            QPushButton:pressed {
+                background-color: #117a8b;
             }
         """)
         test_button.clicked.connect(self.start_notification_test)
@@ -656,6 +799,13 @@ class ConfigEditor(QWidget):
         local_widget = QWidget()
         local_layout = QVBoxLayout()
         local_label = QLabel("使用内置本地识别模型，无需额外配置。\n本地模型正在开发中，请选择其他模型！")
+        local_label.setStyleSheet("""
+            QLabel {
+                color: #6c757d;
+                font-style: italic;
+                padding: 10px;
+            }
+        """)
         local_layout.addWidget(local_label)
         local_widget.setLayout(local_layout)
 
@@ -684,6 +834,13 @@ class ConfigEditor(QWidget):
         custom_widget = QWidget()
         custom_layout = QVBoxLayout()
         custom_label = QLabel("自定义验证码识别系统配置页面\n验证码识别接口正在开发中，请选择其他模型！")
+        custom_label.setStyleSheet("""
+            QLabel {
+                color: #6c757d;
+                font-style: italic;
+                padding: 10px;
+            }
+        """)
         custom_layout.addWidget(custom_label)
         custom_widget.setLayout(custom_layout)
 
@@ -728,12 +885,13 @@ class ConfigEditor(QWidget):
         self.config_stats_label = QLabel("配置统计：0 个课程，0 个互斥规则，0 个延迟规则")
         self.config_stats_label.setStyleSheet("""
             QLabel {
-                background-color: #f3e5f5;
-                border: 1px solid #9c27b0;
-                border-radius: 5px;
-                padding: 8px;
+                background-color: #e9ecef;
+                border: 1px solid #adb5bd;
+                border-radius: 6px;
+                padding: 10px 15px;
                 margin: 5px;
-                font-size: 12px;
+                font-size: 10pt;
+                color: #495057;
             }
         """)
         stats_layout.addWidget(self.config_stats_label)
@@ -742,17 +900,21 @@ class ConfigEditor(QWidget):
         clear_btn = QPushButton("删除所有课程配置")
         clear_btn.setStyleSheet("""
             QPushButton {
-                background-color: #f44336;
+                background-color: #dc3545;
                 color: white;
                 border: none;
-                padding: 8px;
+                padding: 8px 12px;
                 margin: 5px;
-                border-radius: 5px;
-                font-size: 12px;
-                max-width: 120px;
+                border-radius: 6px;
+                font-size: 10pt;
+                font-weight: 500;
+                max-width: 140px;
             }
             QPushButton:hover {
-                background-color: #d32f2f;
+                background-color: #c82333;
+            }
+            QPushButton:pressed {
+                background-color: #bd2130;
             }
         """)
         clear_btn.setToolTip("清空所有课程、互斥规则和延迟规则")
@@ -790,11 +952,13 @@ class ConfigEditor(QWidget):
         info_label = QLabel("课程配置：每个课程包含ID、名称、班级号和学院信息。\n在此添加要刷取的课程")
         info_label.setStyleSheet("""
             QLabel {
-                background-color: #e3f2fd;
-                border: 1px solid #2196f3;
-                border-radius: 5px;
-                padding: 10px;
+                background-color: #e7f3ff;
+                border: 1px solid #b3d9ff;
+                border-radius: 6px;
+                padding: 12px;
                 margin: 5px;
+                color: #004085;
+                font-size: 10pt;
             }
         """)
         layout.addWidget(info_label)
@@ -819,15 +983,19 @@ class ConfigEditor(QWidget):
         add_course_btn.clicked.connect(self.add_course)
         add_course_btn.setStyleSheet("""
             QPushButton {
-                background-color: #2196f3;
+                background-color: #007bff;
                 color: white;
                 border: none;
                 padding: 10px 20px;
-                border-radius: 5px;
-                font-size: 14px;
+                border-radius: 6px;
+                font-size: 11pt;
+                font-weight: 500;
             }
             QPushButton:hover {
-                background-color: #1976d2;
+                background-color: #0056b3;
+            }
+            QPushButton:pressed {
+                background-color: #004085;
             }
         """)
         button_layout.addWidget(add_course_btn)
@@ -835,15 +1003,19 @@ class ConfigEditor(QWidget):
         fast_add_course_btn.clicked.connect(self.fast_add_course)
         fast_add_course_btn.setStyleSheet("""
             QPushButton {
-                background-color: #4caf50;
+                background-color: #28a745;
                 color: white;
                 border: none;
                 padding: 10px 20px;
-                border-radius: 5px;
-                font-size: 14px;
+                border-radius: 6px;
+                font-size: 11pt;
+                font-weight: 500;
             }
             QPushButton:hover {
-                background-color: #388e3c;
+                background-color: #218838;
+            }
+            QPushButton:pressed {
+                background-color: #1e7e34;
             }
         """)
         button_layout.addWidget(fast_add_course_btn)
@@ -863,10 +1035,12 @@ class ConfigEditor(QWidget):
         info_label.setStyleSheet("""
             QLabel {
                 background-color: #fff3e0;
-                border: 1px solid #ff9800;
-                border-radius: 5px;
-                padding: 10px;
+                border: 1px solid #ffc107;
+                border-radius: 6px;
+                padding: 12px;
                 margin: 5px;
+                color: #856404;
+                font-size: 10pt;
             }
         """)
         layout.addWidget(info_label)
@@ -890,15 +1064,19 @@ class ConfigEditor(QWidget):
         add_mutex_btn.clicked.connect(self.add_mutex_rule)
         add_mutex_btn.setStyleSheet("""
             QPushButton {
-                background-color: #ff9800;
+                background-color: #fd7e14;
                 color: white;
                 border: none;
                 padding: 10px 20px;
-                border-radius: 5px;
-                font-size: 14px;
+                border-radius: 6px;
+                font-size: 11pt;
+                font-weight: 500;
             }
             QPushButton:hover {
-                background-color: #f57c00;
+                background-color: #e8590c;
+            }
+            QPushButton:pressed {
+                background-color: #d9480f;
             }
         """)
 
@@ -917,10 +1095,12 @@ class ConfigEditor(QWidget):
         info_label.setStyleSheet("""
             QLabel {
                 background-color: #e8f5e8;
-                border: 1px solid #4caf50;
-                border-radius: 5px;
-                padding: 10px;
+                border: 1px solid #28a745;
+                border-radius: 6px;
+                padding: 12px;
                 margin: 5px;
+                color: #155724;
+                font-size: 10pt;
             }
         """)
         layout.addWidget(info_label)
@@ -944,15 +1124,19 @@ class ConfigEditor(QWidget):
         add_delay_btn.clicked.connect(self.add_delay_rule)
         add_delay_btn.setStyleSheet("""
             QPushButton {
-                background-color: #4caf50;
+                background-color: #20c997;
                 color: white;
                 border: none;
                 padding: 10px 20px;
-                border-radius: 5px;
-                font-size: 14px;
+                border-radius: 6px;
+                font-size: 11pt;
+                font-weight: 500;
             }
             QPushButton:hover {
-                background-color: #45a049;
+                background-color: #17a2b8;
+            }
+            QPushButton:pressed {
+                background-color: #138496;
             }
         """)
 
