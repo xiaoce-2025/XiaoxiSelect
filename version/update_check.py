@@ -6,10 +6,16 @@
 
 """更新检查模块"""
 
-from PyQt6.QtCore import QThread, pyqtSignal
-from PyQt6.QtWidgets import QMessageBox
-from typing import Dict,List
+from PyQt6.QtGui import QDesktopServices
+from PyQt6.QtWidgets import QApplication
+from PyQt6.QtCore import QUrl
 from version.get_updater import check_for_updates
+from PyQt6.QtCore import QThread, pyqtSignal
+from typing import Dict, List
+from PyQt6.QtWidgets import QMessageBox
+
+This_version = "1.2.1"
+New_Download_URL = QUrl("https://github.com/xiaoce-2025/PKUElective2025Autumn")
 
 
 class UpdateWorker(QThread):
@@ -17,7 +23,9 @@ class UpdateWorker(QThread):
 
     # 定义信号
     update_found = pyqtSignal(str)  # 发现更新
+    update_found_necessary = pyqtSignal(str)  # 发现必要更新
     update_error = pyqtSignal(str)  # 发生错误
+    have_necessary_update = False
 
     def __init__(self, gist_url=None):
         super().__init__()
@@ -31,9 +39,13 @@ class UpdateWorker(QThread):
 
             # 格式化显示内容
             if success:
-                message = format_update_message(data)
+                message, have_necessary_update = format_update_message(data)
 
-            if success and message:
+            if success and message == "[INFO]拉取更新成功！当前版本已是最新！":
+                pass
+            elif success and message and have_necessary_update:
+                self.update_found_necessary.emit(message)
+            elif success and message:
                 self.update_found.emit(message)
             else:
                 self.update_error.emit(error or "未知错误")
@@ -64,11 +76,46 @@ type_mapping = {
 }
 
 
+# 比较版本号大小
+def compare_versions(version1: str, version2: str) -> int:
+    """
+    比较两个版本号的大小
+
+    Args:
+        version1: 版本号1，如"1.1.4"
+        version2: 版本号2，如"1.1.5"
+
+    Returns:
+        1: version1 > version2
+        0: version1 == version2
+       -1: version1 < version2
+    """
+    try:
+        v1_parts = [int(part) for part in version1.split('.')]
+        v2_parts = [int(part) for part in version2.split('.')]
+
+        # 补齐长度
+        max_len = max(len(v1_parts), len(v2_parts))
+        v1_parts += [0] * (max_len - len(v1_parts))
+        v2_parts += [0] * (max_len - len(v2_parts))
+
+        for v1, v2 in zip(v1_parts, v2_parts):
+            if v1 > v2:
+                return 1
+            elif v1 < v2:
+                return -1
+
+        return 0
+    except (ValueError, AttributeError):
+        # 如果版本号格式错误，则视为不满足更新条件
+        return -1
+
+
 # 格式化更新消息
 def format_update_message(data: Dict) -> str:
     """
     格式化更新消息为可读字符串
-    
+
     Args:
         data: 更新数据字典
         {
@@ -86,21 +133,46 @@ def format_update_message(data: Dict) -> str:
             },
             "NewURL":"None"
             }
-        
+
     Returns:
         格式化的消息字符串
     """
+    have_necessary_update = False
     update_data = data.get('data')
     if not update_data:
         return "[连接正常，但未拉取到有效更新信息]"
-        
+
     formatted_messages = []
     for single_update_data in update_data:
+        # 获取版本号
+        full_version = single_update_data.get('version', '')
+        if not full_version:
+            continue
+
+        # 从完整版本号中提取最后的数字版本号
+        # 版本号格式如"2025-Autumn-1.1.4"
+        version_parts = full_version.split('-')
+        if not version_parts:
+            continue
+
+        # 获取最后一部分，即数字版本号
+        numeric_version = version_parts[-1]
+
+        # 比较版本号，只有当新版本大于当前版本时才显示
+        if compare_versions(numeric_version, This_version) <= 0:
+            continue
+
+        if (not have_necessary_update) and single_update_data.get('type', '') == "CriticalBugFix":
+            have_necessary_update = True
+
         formatted_message = format_single_update_message(single_update_data)
         formatted_messages.append(formatted_message)
-        
+
     # 在消息之间添加一个空行作为分隔
-    return "\n\n".join(formatted_messages)
+    if not formatted_messages:
+        return "[INFO]拉取更新成功！当前版本已是最新！", False
+
+    return "\n\n".join(formatted_messages), have_necessary_update
 
 
 # 单个更新消息格式化函数
@@ -169,19 +241,69 @@ def check_update(parent=None, gist_url=None):
 
     def show_update_message(message):
         """显示更新消息"""
-        QMessageBox.information(
-            parent,
-            "📢 更新日志",
+        msg_box = QMessageBox(
+            QMessageBox.Icon.Information,
+            "有新版本可用！",
             message,
-            QMessageBox.StandardButton.Ok,
+            QMessageBox.StandardButton.NoButton,
+            parent
         )
-        worker.deleteLater()
+        # 创建自定义按钮
+        ok_button = msg_box.addButton(
+            "前往下载新版本", QMessageBox.ButtonRole.ActionRole)
+        cancel_button = msg_box.addButton(
+            "我知道了", QMessageBox.ButtonRole.RejectRole)
+
+        msg_box.show()
+
+        # 连接按钮点击信号
+        def on_update_clicked():
+            QDesktopServices.openUrl(New_Download_URL)
+            worker.deleteLater()
+
+        def on_cancel_clicked():
+            msg_box.close()
+            worker.deleteLater()
+
+        ok_button.clicked.connect(on_update_clicked)
+        cancel_button.clicked.connect(on_cancel_clicked)
+
+    def show_update_necessary_message(message):
+        """显示更新消息"""
+        msg_box = QMessageBox(
+            QMessageBox.Icon.Information,
+            "有重要更新可用！请立即更新！",
+            message,
+            QMessageBox.StandardButton.NoButton,
+            parent
+        )
+        # 创建自定义按钮
+        ok_button = msg_box.addButton(
+            "前往下载新版本", QMessageBox.ButtonRole.ActionRole)
+        cancel_button = msg_box.addButton(
+            "退出程序", QMessageBox.ButtonRole.RejectRole)
+
+        msg_box.show()
+
+        # 连接按钮点击信号
+        def on_update_clicked():
+            QDesktopServices.openUrl(New_Download_URL)
+            worker.deleteLater()
+            QApplication.quit()
+
+        def on_cancel_clicked():
+            msg_box.close()
+            worker.deleteLater()
+            QApplication.quit()
+
+        ok_button.clicked.connect(on_update_clicked)
+        cancel_button.clicked.connect(on_cancel_clicked)
 
     def show_error_message(error):
         """显示错误消息"""
         QMessageBox.warning(
             parent,
-            "⚠️ 检查更新失败",
+            "检查更新失败",
             f"无法获取更新日志：\n\n{error}",
             QMessageBox.StandardButton.Ok
         )
@@ -190,6 +312,7 @@ def check_update(parent=None, gist_url=None):
     # 连接信号
     worker.update_found.connect(show_update_message)
     worker.update_error.connect(show_error_message)
+    worker.update_found_necessary.connect(show_update_necessary_message)
 
     # 启动线程
     worker.start()
