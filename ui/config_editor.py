@@ -3,8 +3,8 @@
 """
 import os
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout,
-                             QPushButton, QLabel, QLineEdit,
-                             QCheckBox, QComboBox, QGroupBox,
+                             QPushButton, QLabel,
+                             QCheckBox, QComboBox,
                              QFormLayout, QMessageBox, QScrollArea, QFrame, QRadioButton,
                              QStackedWidget, QDialog, QTableWidget, QTableWidgetItem,
                              QVBoxLayout, QDialogButtonBox, QListWidgetItem, QButtonGroup)
@@ -15,8 +15,8 @@ import pyperclip  # 用于访问剪贴板
 from datetime import datetime
 
 # 自定义的各种组件
-from ui.components.MQDoubleSpinBox import MQDoubleSpinBox
-from ui.components.MQSpinBox import MQSpinBox
+from ui.components.MQGroupBox import MQGroupBox
+from ui.components.MQInputComponents import MQDoubleSpinBox, MQSpinBox, MQLineEdit
 
 
 class ConfigEditor(QWidget):
@@ -84,14 +84,14 @@ class ConfigEditor(QWidget):
             QPushButton:pressed {
                 background-color: #004085;
             }
-            QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox, MQSpinBox ,MQDoubleSpinBox {
+            MQLineEdit, QComboBox, MQSpinBox ,MQDoubleSpinBox {
                 border: 1px solid #ced4da;
                 border-radius: 4px;
                 padding: 6px 8px;
                 background: #ffffff;
                 font-size: 10pt;
             }
-            QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus,MQSpinBox:focus, MQDoubleSpinBox:focus {
+            MQLineEdit:focus, QComboBox:focus,MQSpinBox:focus, MQDoubleSpinBox:focus {
                 border-color: #007bff;
                 outline: none;
             }
@@ -123,14 +123,14 @@ class ConfigEditor(QWidget):
             QLabel {
                 color: #495057;
             }
-            QGroupBox {
+            MQGroupBox {
                 font-weight: bold;
                 border: 2px solid #dee2e6;
                 border-radius: 6px;
                 margin-top: 1ex;
                 background: #f8f9fa;
             }
-            QGroupBox::title {
+            MQGroupBox::title {
                 subcontrol-origin: margin;
                 left: 10px;
                 padding: 0 10px 0 10px;
@@ -331,6 +331,14 @@ class ConfigEditor(QWidget):
         self.identity_radio_option_bzx = QRadioButton("主修")
         self.identity_radio_option_bfx = QRadioButton("辅双")
 
+        # 刷新间隔和随机波动
+        self.refresh_interval_spin = MQDoubleSpinBox()
+        self.refresh_interval_spin.setRange(0.1, 10.0)
+        self.refresh_interval_spin.setSingleStep(0.1)
+        self.refresh_random_deviation_spin = MQDoubleSpinBox()
+        self.refresh_random_deviation_spin.setRange(0.0, 5.0)
+        self.refresh_random_deviation_spin.setSingleStep(0.1)
+
         # 顶部布局：右上角按钮
         top_layout = QHBoxLayout()
 
@@ -354,6 +362,10 @@ class ConfigEditor(QWidget):
         top_layout_system_setting.addWidget(self.identity_radio_option_bfx)
         self.identity_radio_group.buttonClicked.connect(
             self.on_identity_radio_button_clicked)
+        top_layout_system_setting.addWidget(QLabel("刷新间隔-秒："))
+        top_layout_system_setting.addWidget(self.refresh_interval_spin)
+        top_layout_system_setting.addWidget(QLabel("随即偏差："))
+        top_layout_system_setting.addWidget(self.refresh_random_deviation_spin)
         top_layout_system_setting.addStretch()
         self.top_widget_system_setting.setLayout(top_layout_system_setting)
 
@@ -782,33 +794,78 @@ class ConfigEditor(QWidget):
         hbox = QHBoxLayout()
         label = QLabel(text)
         # 创建帮助按钮
-        help_btn = QPushButton("?")
-        help_btn.setFixedSize(20, 20)
-        help_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #17a2b8;
-                color: white;
-                border: none;
-                border-radius: 10px;
-                font-size: 10pt;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #138496;
-            }
-        """)
-        help_btn.setToolTip("点击查看详细提示")
-        help_btn.clicked.connect(
-            lambda: QMessageBox.information(self, "填写提示", tooltip))
+        # help_btn = QPushButton("?")
+        # help_btn.setFixedSize(20, 20)
+        # help_btn.setStyleSheet("""
+        #     QPushButton {
+        #         background-color: #17a2b8;
+        #         color: white;
+        #         border: none;
+        #         border-radius: 10px;
+        #         font-size: 10pt;
+        #         font-weight: bold;
+        #     }
+        #     QPushButton:hover {
+        #         background-color: #138496;
+        #     }
+        # """)
+        # help_btn.setToolTip("点击查看详细提示")
+        # help_btn.clicked.connect(
+        #     lambda: QMessageBox.information(self, "填写提示", tooltip))
 
         hbox.addWidget(label)
-        hbox.addWidget(help_btn)
-        hbox.addStretch()  # 添加弹性空间
+        # hbox.addWidget(help_btn)
         hbox.setContentsMargins(0, 0, 0, 0)
 
         container = QWidget()
         container.setLayout(hbox)
         return container
+
+    # qt中默认参数在函数定义时就会被计算，这意味着在导入模块时就会创建 QLabel 实例，而这个时候很可能还没有创建 QApplication。
+    def create_3_inputs_a_line(self, content1, content2=None, content3=None):
+        row_widget = QWidget()
+        row_layout = QHBoxLayout()
+        row_layout.setContentsMargins(0, 0, 0, 0)
+        row_layout.setSpacing(50)
+        
+        # 处理三个content
+        contents = [content1, content2, content3]
+        
+        for _, content in enumerate(contents):
+            if content is None:
+                # 创建空的占位widget
+                left_widget = QLabel()
+                right_widget = QLabel()
+            else:
+                left_widget = content[0]
+                right_widget = content[1]
+            
+            # 创建每个分组的容器
+            group_widget = QWidget()
+            group_layout = QHBoxLayout() 
+            group_layout.setContentsMargins(0, 0,180, 0)
+            group_layout.setSpacing(4)
+            
+            # 添加两个widget
+            group_layout.addWidget(left_widget)
+            group_layout.addWidget(right_widget)
+            
+            # 设置两个widget的拉伸
+            group_layout.setStretch(0, 1)  # 第一个widget拉伸
+            group_layout.setStretch(1, 1)  # 第二个widget拉伸
+            
+            group_widget.setLayout(group_layout)
+            
+            # 添加到行布局，并设置拉伸因子为1
+            row_layout.addWidget(group_widget, 1)
+        
+        # 确保三个分组平均分配空间
+        row_layout.setStretch(0, 1)
+        row_layout.setStretch(1, 1)
+        row_layout.setStretch(2, 1)
+        
+        row_widget.setLayout(row_layout)
+        return row_widget
 
     def on_identity_radio_button_clicked(self, button):
         """选课身份选择组的信号处理"""
@@ -834,14 +891,6 @@ class ConfigEditor(QWidget):
         user_tab = self.create_user_tab()
         layout.addWidget(user_tab)
 
-        # 客户端设置
-        client_tab = self.create_client_tab()
-        layout.addWidget(client_tab)
-
-        # 监控设置
-        monitor_tab = self.create_monitor_tab()
-        layout.addWidget(monitor_tab)
-
         # 通知设置
         notification_tab = self.create_notification_tab()
         layout.addWidget(notification_tab)
@@ -849,6 +898,14 @@ class ConfigEditor(QWidget):
         # 验证码识别设置
         apikey_tab = self.create_apikey_tab()
         layout.addWidget(apikey_tab)
+        
+        # 客户端设置
+        client_tab = self.create_client_tab()
+        layout.addWidget(client_tab)
+
+        # 监控设置
+        monitor_tab = self.create_monitor_tab()
+        layout.addWidget(monitor_tab)
 
         widget.setLayout(layout)
         return widget
@@ -859,14 +916,14 @@ class ConfigEditor(QWidget):
         layout = QVBoxLayout()
         layout.setContentsMargins(10, 10, 10, 10)
 
-        group = QGroupBox("用户认证设置")
-        group_layout = QFormLayout()
+        group = MQGroupBox("用户认证设置")
+        group_layout = QVBoxLayout()
         group_layout.setContentsMargins(10, 10, 10, 10)
         group_layout.setSpacing(10)
 
-        self.student_id_edit = QLineEdit()
-        self.password_edit = QLineEdit()
-        self.password_edit.setEchoMode(QLineEdit.EchoMode.Password)
+        self.student_id_edit = MQLineEdit()
+        self.password_edit = MQLineEdit()
+        self.password_edit.setEchoMode(MQLineEdit.EchoMode.Password)
         self.dual_degree_check = QCheckBox()
         self.identity_combo = QComboBox()
         self.identity_combo.addItems(["bzx", "bfx"])
@@ -874,10 +931,9 @@ class ConfigEditor(QWidget):
         self.identity_combo.hide()
         self.identity_combo.hide()
 
-        group_layout.addRow(self.create_label_with_tooltip(
-            "IAAA账号:", "请输入您的IAAA认证账号，如: 2500011111"), self.student_id_edit)
-        group_layout.addRow(self.create_label_with_tooltip(
-            "IAAA密码:", "请输入您的IAAA认证密码"), self.password_edit)
+        group_layout.addWidget(self.create_3_inputs_a_line((self.create_label_with_tooltip(
+            "IAAA账号:", "请输入您的IAAA认证账号，如: 2500011111"), self.student_id_edit), (self.create_label_with_tooltip(
+                "IAAA密码:", "请输入您的IAAA认证密码"), self.password_edit)))
 
         group.setLayout(group_layout)
         layout.addWidget(group)
@@ -895,17 +951,11 @@ class ConfigEditor(QWidget):
         layout = QVBoxLayout()
         layout.setContentsMargins(10, 10, 10, 10)
 
-        group = QGroupBox("客户端参数设置")
-        group_layout = QFormLayout()
+        group = MQGroupBox("客户端参数设置（不建议修改）")
+        group_layout = QVBoxLayout()
         group_layout.setContentsMargins(10, 10, 10, 10)
         group_layout.setSpacing(10)
 
-        self.refresh_interval_spin = MQDoubleSpinBox()
-        self.refresh_interval_spin.setRange(0.1, 10.0)
-        self.refresh_interval_spin.setSingleStep(0.1)
-        self.refresh_random_deviation_spin = MQDoubleSpinBox()
-        self.refresh_random_deviation_spin.setRange(0.0, 5.0)
-        self.refresh_random_deviation_spin.setSingleStep(0.1)
         self.iaaa_timeout_spin = MQDoubleSpinBox()
         self.iaaa_timeout_spin.setRange(1.0, 60.0)
         self.elective_timeout_spin = MQDoubleSpinBox()
@@ -921,26 +971,17 @@ class ConfigEditor(QWidget):
         self.debug_request_check = QCheckBox()
         self.debug_dump_check = QCheckBox()
 
-        group_layout.addRow(self.create_label_with_tooltip(
-            "刷新间隔(秒):", "每次循环后的暂停时间"), self.refresh_interval_spin)
-        group_layout.addRow(self.create_label_with_tooltip(
-            "随机偏差(秒):", "偏移量分数，如果设置为 <= 0 的值，则视为 0"), self.refresh_random_deviation_spin)
-        group_layout.addRow(self.create_label_with_tooltip(
-            "IAAA超时(秒):", "IAAA 客户端最长请求超时"), self.iaaa_timeout_spin)
-        group_layout.addRow(self.create_label_with_tooltip(
-            "选课超时(秒):", "elective 客户端最长请求超时"), self.elective_timeout_spin)
-        group_layout.addRow(self.create_label_with_tooltip(
-            "连接池大小:", "最多同时保持几个 elective 的有效会话（同一 IP 下最多为 5）"), self.pool_size_spin)
-        group_layout.addRow(self.create_label_with_tooltip(
-            "最大生命周期(秒):", "elvetive 客户端的存活时间，设置为 -1 则存活时间为无限长"), self.max_life_spin)
-        group_layout.addRow(self.create_label_with_tooltip(
-            "登录循环间隔(秒):", "IAAA 登录线程每回合结束后的等待时间"), self.login_loop_interval_spin)
-        group_layout.addRow(self.create_label_with_tooltip(
-            "打印互斥规则:", "是否在每次循环时打印完整的互斥规则列表"), self.print_mutex_check)
-        group_layout.addRow(self.create_label_with_tooltip(
-            "调试请求:", "是否打印请求细节"), self.debug_request_check)
-        group_layout.addRow(self.create_label_with_tooltip(
-            "调试转储:", "是否将重要接口的请求以日志的形式记录到本地（包括补退选页、提交选课等接口）"), self.debug_dump_check)
+        group_layout.addWidget(self.create_3_inputs_a_line((self.create_label_with_tooltip(
+            "IAAA超时(秒):", "IAAA 客户端最长请求超时"), self.iaaa_timeout_spin), (self.create_label_with_tooltip(
+                "选课超时(秒):", "elective 客户端最长请求超时"), self.elective_timeout_spin), (self.create_label_with_tooltip(
+                    "连接池大小:", "最多同时保持几个 elective 的有效会话（同一 IP 下最多为 5）"), self.pool_size_spin)))
+        group_layout.addWidget(self.create_3_inputs_a_line((self.create_label_with_tooltip(
+            "最大生命周期(秒):", "elvetive 客户端的存活时间，设置为 -1 则存活时间为无限长"), self.max_life_spin), (self.create_label_with_tooltip(
+                "登录循环间隔(秒):", "IAAA 登录线程每回合结束后的等待时间"), self.login_loop_interval_spin), (self.create_label_with_tooltip(
+                    "打印互斥规则:", "是否在每次循环时打印完整的互斥规则列表"), self.print_mutex_check)))
+        group_layout.addWidget(self.create_3_inputs_a_line((self.create_label_with_tooltip(
+            "调试请求:", "是否打印请求细节"), self.debug_request_check), (self.create_label_with_tooltip(
+                "调试转储:", "是否将重要接口的请求以日志的形式记录到本地（包括补退选页、提交选课等接口）"), self.debug_dump_check)))
 
         group.setLayout(group_layout)
         layout.addWidget(group)
@@ -954,18 +995,17 @@ class ConfigEditor(QWidget):
         layout = QVBoxLayout()
         layout.setContentsMargins(10, 10, 10, 10)
 
-        group = QGroupBox("监控参数设置")
-        group_layout = QFormLayout()
+        group = MQGroupBox("监控参数设置（不建议修改）")
+        group_layout = QVBoxLayout()
         group_layout.setContentsMargins(10, 10, 10, 10)
         group_layout.setSpacing(10)
 
-        self.monitor_host_edit = QLineEdit()
+        self.monitor_host_edit = MQLineEdit()
         self.monitor_port_spin = MQSpinBox()
         self.monitor_port_spin.setRange(1, 65535)
 
-        group_layout.addRow("提示", QLabel("如非专业人员，请勿修改此页配置！"))
-        group_layout.addRow("监控主机:", self.monitor_host_edit)
-        group_layout.addRow("监控端口:", self.monitor_port_spin)
+        group_layout.addWidget(self.create_3_inputs_a_line((self.create_label_with_tooltip(
+            "监控主机:", "你的主机地址"), self.monitor_host_edit), (self.create_label_with_tooltip("监控端口:", "选课网工作端口"), self.monitor_port_spin)))
 
         group.setLayout(group_layout)
         layout.addWidget(group)
@@ -979,19 +1019,15 @@ class ConfigEditor(QWidget):
         layout = QVBoxLayout()
         layout.setContentsMargins(10, 10, 10, 10)
 
-        group = QGroupBox("通知设置")
-        group_layout = QFormLayout()
+        group = MQGroupBox("通知设置")
+        group_layout = QVBoxLayout()
         group_layout.setContentsMargins(10, 10, 10, 10)
         group_layout.setSpacing(10)
 
         self.yanxx_voice_check = QCheckBox()
         self.yanxx_weixin_check = QCheckBox()
-        self.yanxx_weixin_user_edit = QLineEdit()
+        self.yanxx_weixin_user_edit = MQLineEdit()
 
-        group_layout.addRow(self.create_label_with_tooltip(
-            "语音提醒：", "是否开启语音提醒"), self.yanxx_voice_check)
-        group_layout.addRow(self.create_label_with_tooltip(
-            "微信提醒与控制：", "是否开启微信提醒与控制"), self.yanxx_weixin_check)
         # 创建微信昵称容器（初始隐藏）
         self.yanxx_weixin_user_container = QWidget()
         yanxx_weixin_user_layout = QFormLayout()
@@ -1019,7 +1055,12 @@ class ConfigEditor(QWidget):
         yanxx_weixin_user_layout.addRow(test_button)
         self.yanxx_weixin_user_container.setLayout(yanxx_weixin_user_layout)
         self.yanxx_weixin_user_container.setVisible(False)  # 初始隐藏
-        group_layout.addRow("", self.yanxx_weixin_user_container)  # 添加微信昵称容器
+        # 添加语音和微信提醒开关
+        group_layout.addWidget(self.create_3_inputs_a_line((self.create_label_with_tooltip(
+            "语音提醒：", "是否开启语音提醒"), self.yanxx_voice_check),(self.create_label_with_tooltip(
+            "微信提醒与控制：", "是否开启微信提醒与控制"), self.yanxx_weixin_check)))
+        # 添加微信提醒名单和测试容器
+        group_layout.addWidget(self.yanxx_weixin_user_container)
         # 连接微信监听状态复选框状态改变信号
         self.yanxx_weixin_check.stateChanged.connect(
             self.yanxx_weixin_user_visibility)
@@ -1063,7 +1104,7 @@ class ConfigEditor(QWidget):
         main_layout = QVBoxLayout()
 
         # 创建选项组
-        options_group = QGroupBox("验证码识别系统选择")
+        options_group = MQGroupBox("验证码识别系统选择")
         options_layout = QVBoxLayout()
 
         # 创建单选按钮
@@ -1100,10 +1141,10 @@ class ConfigEditor(QWidget):
         # TT商用识别平台页面
         tt_widget = QWidget()
         tt_layout = QFormLayout()
-        self.username_edit = QLineEdit()
-        self.apikey_password_edit = QLineEdit()
-        self.apikey_password_edit.setEchoMode(QLineEdit.EchoMode.Password)
-        self.recognition_type_edit = QLineEdit()
+        self.username_edit = MQLineEdit()
+        self.apikey_password_edit = MQLineEdit()
+        self.apikey_password_edit.setEchoMode(MQLineEdit.EchoMode.Password)
+        self.recognition_type_edit = MQLineEdit()
 
         # TT识图api表单
         tt_layout.addRow("用户名:", self.username_edit)
@@ -1512,10 +1553,10 @@ class ConfigEditor(QWidget):
 
         layout = QFormLayout()
 
-        course_id_edit = QLineEdit()
-        course_name_edit = QLineEdit()
-        class_no_edit = QLineEdit()
-        school_edit = QLineEdit()
+        course_id_edit = MQLineEdit()
+        course_name_edit = MQLineEdit()
+        class_no_edit = MQLineEdit()
+        school_edit = MQLineEdit()
 
         layout.addRow("课程ID（自定义，用于后续规则识别）:", course_id_edit)
         layout.addRow("课程名称（须与选课网完全一致）:", course_name_edit)
@@ -1754,7 +1795,7 @@ class ConfigEditor(QWidget):
         from PyQt6.QtWidgets import QHBoxLayout
         id_layout = QHBoxLayout()
         id_layout.addWidget(QLabel("规则ID:"))
-        rule_id_edit = QLineEdit()
+        rule_id_edit = MQLineEdit()
         id_layout.addWidget(rule_id_edit)
         layout.addLayout(id_layout)
 
@@ -1814,7 +1855,7 @@ class ConfigEditor(QWidget):
 
         layout = QFormLayout()
 
-        delay_id_edit = QLineEdit()
+        delay_id_edit = MQLineEdit()
         course_combo = QComboBox()
         threshold_spin = MQSpinBox()
         threshold_spin.setRange(1, 1000)
@@ -2001,9 +2042,9 @@ class ConfigEditor(QWidget):
 
         layout = QFormLayout()
 
-        course_name_edit = QLineEdit(course_name)
-        class_no_edit = QLineEdit(class_no)
-        school_edit = QLineEdit(school)
+        course_name_edit = MQLineEdit(course_name)
+        class_no_edit = MQLineEdit(class_no)
+        school_edit = MQLineEdit(school)
 
         layout.addRow("课程名称:", course_name_edit)
         layout.addRow("班级号:", class_no_edit)
