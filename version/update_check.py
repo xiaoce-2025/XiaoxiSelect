@@ -304,7 +304,7 @@ def check_update(parent=None, gist_url=None):
         QMessageBox.warning(
             parent,
             "检查更新失败",
-            f"无法获取更新日志：\n\n{error}",
+            f"无法获取更新日志",
             QMessageBox.StandardButton.Ok
         )
         worker.deleteLater()
