@@ -122,6 +122,7 @@ class ConfigEditor(QWidget):
             }
             QLabel {
                 color: #495057;
+                background-color: transparent;
             }
             MQGroupBox {
                 font-weight: bold;
@@ -156,6 +157,7 @@ class ConfigEditor(QWidget):
             }
             QRadioButton {
                 spacing: 8px;
+                background-color: transparent;
             }
             QRadioButton::indicator {
                 width: 16px;
@@ -336,8 +338,11 @@ class ConfigEditor(QWidget):
         self.refresh_interval_spin.setRange(0.1, 10.0)
         self.refresh_interval_spin.setSingleStep(0.1)
         self.refresh_random_deviation_spin = MQDoubleSpinBox()
-        self.refresh_random_deviation_spin.setRange(0.0, 5.0)
-        self.refresh_random_deviation_spin.setSingleStep(0.1)
+        self.refresh_random_deviation_spin.setRange(0.0, 1.0)
+        self.refresh_random_deviation_spin.setSingleStep(0.05)
+
+        # 刷新间隔范围展示
+        self.refresh_range_info = QLabel()
 
         # 顶部布局：右上角按钮
         top_layout = QHBoxLayout()
@@ -362,19 +367,24 @@ class ConfigEditor(QWidget):
         top_layout_system_setting.addWidget(self.identity_radio_option_bfx)
         self.identity_radio_group.buttonClicked.connect(
             self.on_identity_radio_button_clicked)
-        top_layout_system_setting.addWidget(QLabel("刷新间隔-秒："))
-        top_layout_system_setting.addWidget(self.refresh_interval_spin)
-        top_layout_system_setting.addWidget(QLabel("随即偏差："))
-        top_layout_system_setting.addWidget(self.refresh_random_deviation_spin)
         top_layout_system_setting.addStretch()
+        top_layout_system_setting.addWidget(QLabel("期望刷新间隔:"))
+        top_layout_system_setting.addWidget(self.refresh_interval_spin)
+        top_layout_system_setting.addWidget(QLabel())
+        top_layout_system_setting.addWidget(QLabel("随机偏差:"))
+        top_layout_system_setting.addWidget(self.refresh_random_deviation_spin)
+        top_layout_system_setting.addWidget(QLabel())
+        top_layout_system_setting.addWidget(self.refresh_range_info)
+        top_layout_system_setting.addWidget(QLabel())
         self.top_widget_system_setting.setLayout(top_layout_system_setting)
 
         # 课程设置界面顶部的选项
         self.top_widget_course_setting = QWidget()
         self.top_widget_course_setting.setObjectName("top_widget_setting")
         top_layout_course_setting = QHBoxLayout()
-        top_layout_course_setting.addWidget(QLabel("补退选页数："))
+        top_layout_course_setting.addWidget(QLabel("补退选页数:"))
         top_layout_course_setting.addWidget(self.supply_cancel_page_spin)
+        top_layout_course_setting.addWidget(QLabel())
         top_layout_course_setting.addWidget(add_course_btn)
         top_layout_course_setting.addWidget(fast_add_course_btn)
         top_layout_course_setting.addWidget(add_mutex_btn)
@@ -548,6 +558,9 @@ class ConfigEditor(QWidget):
             # 更新统计信息
             self.update_config_stats()
 
+            # 更新刷新间隔
+            self.update_refresh_interval_label()
+
             # 连接自动保存信号
             self.setup_autosave_connections()
 
@@ -589,6 +602,12 @@ class ConfigEditor(QWidget):
             self.save_non_course_configs)
         self.debug_dump_check.stateChanged.connect(
             self.save_non_course_configs)
+
+        # 刷新间隔相关额外连接刷新间隔标签更新
+        self.refresh_interval_spin.valueChanged.connect(
+            self.update_refresh_interval_label)
+        self.refresh_random_deviation_spin.valueChanged.connect(
+            self.update_refresh_interval_label)
 
         # 监控设置
         self.monitor_host_edit.editingFinished.connect(
@@ -827,10 +846,10 @@ class ConfigEditor(QWidget):
         row_layout = QHBoxLayout()
         row_layout.setContentsMargins(0, 0, 0, 0)
         row_layout.setSpacing(50)
-        
+
         # 处理三个content
         contents = [content1, content2, content3]
-        
+
         for _, content in enumerate(contents):
             if content is None:
                 # 创建空的占位widget
@@ -839,31 +858,31 @@ class ConfigEditor(QWidget):
             else:
                 left_widget = content[0]
                 right_widget = content[1]
-            
+
             # 创建每个分组的容器
             group_widget = QWidget()
-            group_layout = QHBoxLayout() 
-            group_layout.setContentsMargins(0, 0,180, 0)
+            group_layout = QHBoxLayout()
+            group_layout.setContentsMargins(0, 0, 180, 0)
             group_layout.setSpacing(4)
-            
+
             # 添加两个widget
             group_layout.addWidget(left_widget)
             group_layout.addWidget(right_widget)
-            
+
             # 设置两个widget的拉伸
             group_layout.setStretch(0, 1)  # 第一个widget拉伸
             group_layout.setStretch(1, 1)  # 第二个widget拉伸
-            
+
             group_widget.setLayout(group_layout)
-            
+
             # 添加到行布局，并设置拉伸因子为1
             row_layout.addWidget(group_widget, 1)
-        
+
         # 确保三个分组平均分配空间
         row_layout.setStretch(0, 1)
         row_layout.setStretch(1, 1)
         row_layout.setStretch(2, 1)
-        
+
         row_widget.setLayout(row_layout)
         return row_widget
 
@@ -898,7 +917,7 @@ class ConfigEditor(QWidget):
         # 验证码识别设置
         apikey_tab = self.create_apikey_tab()
         layout.addWidget(apikey_tab)
-        
+
         # 客户端设置
         client_tab = self.create_client_tab()
         layout.addWidget(client_tab)
@@ -916,7 +935,7 @@ class ConfigEditor(QWidget):
         layout = QVBoxLayout()
         layout.setContentsMargins(10, 10, 10, 10)
 
-        group = MQGroupBox("用户认证设置")
+        group = MQGroupBox("门户IAAA认证信息")
         group_layout = QVBoxLayout()
         group_layout.setContentsMargins(10, 10, 10, 10)
         group_layout.setSpacing(10)
@@ -989,6 +1008,13 @@ class ConfigEditor(QWidget):
         widget.setLayout(layout)
         return widget
 
+    def update_refresh_interval_label(self):
+        average = self.refresh_interval_spin.value()
+        bias = self.refresh_random_deviation_spin.value()
+        bias *= average  
+        self.refresh_range_info.setText(
+            f"刷新间隔将在 {average-bias:.2f} 秒 至 {average+bias:.2f} 秒 之间随机选取")
+
     def create_monitor_tab(self):
         """创建监控设置标签页"""
         widget = QWidget()
@@ -1057,8 +1083,8 @@ class ConfigEditor(QWidget):
         self.yanxx_weixin_user_container.setVisible(False)  # 初始隐藏
         # 添加语音和微信提醒开关
         group_layout.addWidget(self.create_3_inputs_a_line((self.create_label_with_tooltip(
-            "语音提醒：", "是否开启语音提醒"), self.yanxx_voice_check),(self.create_label_with_tooltip(
-            "微信提醒与控制：", "是否开启微信提醒与控制"), self.yanxx_weixin_check)))
+            "语音提醒：", "是否开启语音提醒"), self.yanxx_voice_check), (self.create_label_with_tooltip(
+                "微信提醒与控制：", "是否开启微信提醒与控制"), self.yanxx_weixin_check)))
         # 添加微信提醒名单和测试容器
         group_layout.addWidget(self.yanxx_weixin_user_container)
         # 连接微信监听状态复选框状态改变信号

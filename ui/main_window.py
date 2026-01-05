@@ -69,7 +69,7 @@ class MainWindow(QMainWindow):
         title_layout = QHBoxLayout(title_frame)
         title_layout.setContentsMargins(10, 5, 10, 5)
         
-        title_label = QLabel("PKUElective2025Autumm")
+        title_label = QLabel("PKUElective2026Spring")
         title_label.setStyleSheet("""
             QLabel {
                 font-size: 28px;
