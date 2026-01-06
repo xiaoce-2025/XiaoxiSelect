@@ -15,7 +15,7 @@ from typing import Dict, List
 from PyQt6.QtWidgets import QMessageBox
 
 This_version = "1.2.1"
-New_Download_URL = QUrl("https://github.com/xiaoce-2025/PKUElective2025Autumn")
+New_Download_URL = QUrl("https://github.com/xiaoce-2025/XiaoxiSelect")
 
 
 class UpdateWorker(QThread):
