@@ -295,7 +295,7 @@ class ConfigEditor(QWidget):
                 border: 1px solid #adb5bd;
                 border-radius: 6px;
                 padding: 8px 16px;
-                margin: 5px;
+                margin: 0px;
                 font-size: 10pt;
                 color: #495057;
             }
@@ -308,7 +308,7 @@ class ConfigEditor(QWidget):
                 color: white;
                 border: none;
                 padding: 8px 12px;
-                margin: 5px;
+                margin: 0px;
                 border-radius: 6px;
                 font-size: 10pt;
                 font-weight: 500;
@@ -382,8 +382,9 @@ class ConfigEditor(QWidget):
         self.top_widget_course_setting = QWidget()
         self.top_widget_course_setting.setObjectName("top_widget_setting")
         top_layout_course_setting = QHBoxLayout()
-        top_layout_course_setting.addWidget(QLabel("补退选页数:"))
+        top_layout_course_setting.addWidget(QLabel("待选课程在补退选页面中的第"))
         top_layout_course_setting.addWidget(self.supply_cancel_page_spin)
+        top_layout_course_setting.addWidget(QLabel("页"))
         top_layout_course_setting.addWidget(QLabel())
         top_layout_course_setting.addWidget(add_course_btn)
         top_layout_course_setting.addWidget(fast_add_course_btn)
@@ -396,6 +397,11 @@ class ConfigEditor(QWidget):
         self.top_widget_course_setting.setLayout(top_layout_course_setting)
         # 初始隐藏
         self.top_widget_course_setting.hide()
+
+        # 顶部布局统一固定高度
+        top_fixed_height = 50
+        self.top_widget_system_setting.setFixedHeight(top_fixed_height)
+        self.top_widget_course_setting.setFixedHeight(top_fixed_height)
 
         # 将两个设置添加到最上行
         top_layout.addWidget(self.top_widget_system_setting)
@@ -1245,6 +1251,7 @@ class ConfigEditor(QWidget):
         mutex_tab = self.create_mutex_list_tab()
         layout.addWidget(mutex_tab)
 
+        layout.addStretch()
         # 延迟规则部分（延迟规则设置已并入课程部分）
         # delay_tab = self.create_delay_list_tab()
         # layout.addWidget(delay_tab)
@@ -1272,20 +1279,19 @@ class ConfigEditor(QWidget):
         # """)
         # layout.addWidget(info_label)
 
+        course_group = MQGroupBox("课程配置")
         # 课程列表
-        self.course_list_widget = QWidget()
+        # self.course_list_widget = QWidget()
         self.course_list_layout = QVBoxLayout()
         self.course_list_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        self.course_list_widget.setLayout(self.course_list_layout)
+        course_group.setLayout(self.course_list_layout)
 
         # 滚动区域
         # scroll_area = QScrollArea()
         # scroll_area.setWidget(self.course_list_widget)
         # scroll_area.setWidgetResizable(True)
         # scroll_area.setMinimumHeight(300)
-
-        layout.addWidget(self.course_list_widget)
-
+        layout.addWidget(course_group)
         widget.setLayout(layout)
         return widget
 
@@ -1309,11 +1315,12 @@ class ConfigEditor(QWidget):
         # """)
         # layout.addWidget(info_label)
 
+        mutex_group = MQGroupBox("互斥规则")
         # 互斥规则列表
-        self.mutex_list_widget = QWidget()
+        # self.mutex_list_widget = QWidget()
         self.mutex_list_layout = QVBoxLayout()
         self.mutex_list_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        self.mutex_list_widget.setLayout(self.mutex_list_layout)
+        mutex_group.setLayout(self.mutex_list_layout)
 
         # 滚动区域
         # scroll_area = QScrollArea()
@@ -1321,8 +1328,7 @@ class ConfigEditor(QWidget):
         # scroll_area.setWidgetResizable(True)
         # scroll_area.setMinimumHeight(300)
 
-        layout.addWidget(self.mutex_list_widget)
-
+        layout.addWidget(mutex_group)
         widget.setLayout(layout)
         return widget
 
@@ -1377,7 +1383,7 @@ class ConfigEditor(QWidget):
             }
         """)
         item_layout = QHBoxLayout()
-        item_layout.setContentsMargins(10, 10, 10, 10)
+        item_layout.setContentsMargins(10, 5, 10, 5)
 
         # 课程信息标签
         if threshold <= 0:
@@ -1446,11 +1452,11 @@ class ConfigEditor(QWidget):
                 background-color: #fff3cd;
                 border: 1px solid #ffeaa7;
                 border-radius: 8px;
-                margin: 5px;
+                margin: 0px;
             }
         """)
         item_layout = QHBoxLayout()
-        item_layout.setContentsMargins(10, 10, 10, 10)
+        item_layout.setContentsMargins(10, 5, 10, 5)
 
         # 互斥规则信息标签
         courses_text = ", ".join(courses)
