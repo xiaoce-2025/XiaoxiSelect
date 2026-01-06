@@ -32,7 +32,7 @@ class MainWindow(QMainWindow):
         check_update(self)
     
     def init_ui(self):
-        self.setWindowTitle("PKUElective2026Spring")
+        self.setWindowTitle("严小希选课小助手 2026Spring-v1.2.1")
         self.setGeometry(100, 100, 1200, 800)
         
         # 设置应用图标
@@ -45,6 +45,7 @@ class MainWindow(QMainWindow):
         # 设置主窗口背景
         gradient = QLinearGradient(0, 0, 0, 400)
         gradient.setColorAt(0, QColor("#f0f8ff"))  # 浅蓝色
+
         gradient.setColorAt(1, QColor("#e6f7ff"))  # 更浅的蓝色
         palette = self.palette()
         palette.setBrush(QPalette.ColorRole.Window, QBrush(gradient))
@@ -54,27 +55,41 @@ class MainWindow(QMainWindow):
         main_layout = QVBoxLayout(central_widget)
         main_layout.setContentsMargins(15, 15, 15, 15)
         main_layout.setSpacing(15)
-        
+
         # 标题区域
         title_frame = QFrame()
         title_frame.setStyleSheet("""
             QFrame {
-                background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                    stop:0 #1e5799, stop:1 #2989d8);
-                border-radius: 10px;
-                padding: 5px;
+                background-color: transparent;
+                border: none;
             }
         """)
-        
+
         title_layout = QHBoxLayout(title_frame)
         title_layout.setContentsMargins(10, 5, 10, 5)
-        
-        title_label = QLabel("PKUElective2026Spring")
+
+        # 使用HTML创建彩虹色文字
+        rainbow_text = """
+        <span style="
+            font-family: '华文行楷', 'Microsoft YaHei', sans-serif;
+            font-size: 36px;
+            font-weight: bold;
+        ">
+            <span style="color: #FF0000;">严</span>
+            <span style="color: #FF7F00;">小</span>
+            <span style="color: #FFD700;">希</span>
+            <span style="color: #00FF00;">选</span>
+            <span style="color: #00FFFF;">课</span>
+            <span style="color: #0000FF;">小</span>
+            <span style="color: #8B00FF;">助</span>
+            <span style="color: #FF00FF;">手</span>
+        </span>
+        """
+
+        title_label = QLabel(rainbow_text)
         title_label.setStyleSheet("""
             QLabel {
-                font-size: 28px;
-                font-weight: bold;
-                color: white;
+                background-color: transparent;
             }
         """)
         title_label.setAlignment(Qt.AlignmentFlag.AlignLeft)

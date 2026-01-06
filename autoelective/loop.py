@@ -341,8 +341,8 @@ def run_elective_loop():
         client.set_user_agent(random.choice(USER_AGENT_LIST))
         electivePool.put_nowait(client)
 
-    cout.info("欢迎使用自动选课小工具！")
-    cout.info("科技不应高高在上，而应服务于每一个人")
+    cout.info("欢迎使用严小希选课小助手！")
+    cout.info("让时光的帷幕，牵动往昔的涟漪，自此汇入晨光！")
     cout.info("")
 
     line = "-" * 30
