@@ -1258,19 +1258,19 @@ class ConfigEditor(QWidget):
         layout = QVBoxLayout()
 
         # 说明标签
-        info_label = QLabel("课程配置：每个课程包含ID、名称、班级号和学院信息。      在此添加要刷取的课程")
-        info_label.setStyleSheet("""
-            QLabel {
-                background-color: #e7f3ff;
-                border: 1px solid #b3d9ff;
-                border-radius: 6px;
-                padding: 12px;
-                margin: 5px;
-                color: #004085;
-                font-size: 10pt;
-            }
-        """)
-        layout.addWidget(info_label)
+        # info_label = QLabel("课程配置：每个课程包含ID、名称、班级号和学院信息。      在此添加要刷取的课程")
+        # info_label.setStyleSheet("""
+        #     QLabel {
+        #         background-color: #e7f3ff;
+        #         border: 1px solid #b3d9ff;
+        #         border-radius: 6px;
+        #         padding: 12px;
+        #         margin: 5px;
+        #         color: #004085;
+        #         font-size: 10pt;
+        #     }
+        # """)
+        # layout.addWidget(info_label)
 
         # 课程列表
         self.course_list_widget = QWidget()
@@ -1279,12 +1279,12 @@ class ConfigEditor(QWidget):
         self.course_list_widget.setLayout(self.course_list_layout)
 
         # 滚动区域
-        scroll_area = QScrollArea()
-        scroll_area.setWidget(self.course_list_widget)
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setMinimumHeight(300)
+        # scroll_area = QScrollArea()
+        # scroll_area.setWidget(self.course_list_widget)
+        # scroll_area.setWidgetResizable(True)
+        # scroll_area.setMinimumHeight(300)
 
-        layout.addWidget(scroll_area)
+        layout.addWidget(self.course_list_widget)
 
         widget.setLayout(layout)
         return widget
@@ -1295,19 +1295,19 @@ class ConfigEditor(QWidget):
         layout = QVBoxLayout()
 
         # 说明标签
-        info_label = QLabel("互斥规则：指定哪些课程不能同时选择。同一个互斥规则下选上一门课后则不会再选择其他课程")
-        info_label.setStyleSheet("""
-            QLabel {
-                background-color: #fff3e0;
-                border: 1px solid #ffc107;
-                border-radius: 6px;
-                padding: 12px;
-                margin: 5px;
-                color: #856404;
-                font-size: 10pt;
-            }
-        """)
-        layout.addWidget(info_label)
+        # info_label = QLabel("互斥规则：指定哪些课程不能同时选择。同一个互斥规则下选上一门课后则不会再选择其他课程")
+        # info_label.setStyleSheet("""
+        #     QLabel {
+        #         background-color: #fff3e0;
+        #         border: 1px solid #ffc107;
+        #         border-radius: 6px;
+        #         padding: 12px;
+        #         margin: 5px;
+        #         color: #856404;
+        #         font-size: 10pt;
+        #     }
+        # """)
+        # layout.addWidget(info_label)
 
         # 互斥规则列表
         self.mutex_list_widget = QWidget()
@@ -1316,12 +1316,12 @@ class ConfigEditor(QWidget):
         self.mutex_list_widget.setLayout(self.mutex_list_layout)
 
         # 滚动区域
-        scroll_area = QScrollArea()
-        scroll_area.setWidget(self.mutex_list_widget)
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setMinimumHeight(300)
+        # scroll_area = QScrollArea()
+        # scroll_area.setWidget(self.mutex_list_widget)
+        # scroll_area.setWidgetResizable(True)
+        # scroll_area.setMinimumHeight(300)
 
-        layout.addWidget(scroll_area)
+        layout.addWidget(self.mutex_list_widget)
 
         widget.setLayout(layout)
         return widget
@@ -1454,7 +1454,7 @@ class ConfigEditor(QWidget):
 
         # 互斥规则信息标签
         courses_text = ", ".join(courses)
-        info_label = QLabel(f"互斥组<b>{mutex_id}:</b> {courses_text}")
+        info_label = QLabel(f"互斥组 <b>{mutex_id}</b> 中的互斥课程ID: {courses_text}")
         info_label.setStyleSheet("QLabel { color: #856404; }")
         info_label.setWordWrap(True)
 
@@ -2041,7 +2041,7 @@ class ConfigEditor(QWidget):
         # 确认对话框
         reply = QMessageBox.question(
             self, "确认清空",
-            "确定要清空所有课程、互斥规则和延迟规则吗？此操作不可恢复！",
+            "确定要清空所有课程和所有互斥规则吗？此操作不可恢复！",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No
         )
