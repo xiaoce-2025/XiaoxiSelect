@@ -14,7 +14,7 @@ from PyQt6.QtCore import QThread, pyqtSignal
 from typing import Dict, List
 from PyQt6.QtWidgets import QMessageBox
 
-This_version = "1.2.1"
+This_version = "1.2.2"
 New_Download_URL = QUrl("https://github.com/xiaoce-2025/XiaoxiSelect")
 
 

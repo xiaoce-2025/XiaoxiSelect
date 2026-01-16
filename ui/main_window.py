@@ -32,7 +32,7 @@ class MainWindow(QMainWindow):
         check_update(self)
     
     def init_ui(self):
-        self.setWindowTitle("严小希选课小助手 2026Spring-v1.2.1")
+        self.setWindowTitle("严小希选课小助手 2026Spring-v1.2.2")
         self.setGeometry(100, 100, 1200, 800)
         
         # 设置应用图标
