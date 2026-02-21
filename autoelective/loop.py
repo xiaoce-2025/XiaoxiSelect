@@ -1,6 +1,8 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-# filename: loop.py
+"""
+@Author : xiaoce2025
+@File   : loop.py
+@Date   : 2025-08-30
+"""
 
 import os
 import time
@@ -81,6 +83,49 @@ NO_DELAY = -1
 notify.send_bark_push(msg=WECHAT_MSG["s"], prefix=WECHAT_PREFIX[3])
 
 
+# 刷新系统配置
+def refreshsettings():
+    global username, password, is_dual_degree, identity, refresh_interval
+    global refresh_random_deviation, supply_cancel_page, iaaa_client_timeout
+    global elective_client_timeout, login_loop_interval, elective_client_pool_size
+    global elective_client_max_life, is_print_mutex_rules, notify
+    global electivePool, reloginPool, goals, ignored, mutexes, delays
+    global recognizer
+
+    username = config.iaaa_id
+    password = config.iaaa_password
+    is_dual_degree = config.is_dual_degree
+    identity = config.identity
+    refresh_interval = config.refresh_interval
+    refresh_random_deviation = config.refresh_random_deviation
+    supply_cancel_page = config.supply_cancel_page
+    iaaa_client_timeout = config.iaaa_client_timeout
+    elective_client_timeout = config.elective_client_timeout
+    login_loop_interval = config.login_loop_interval
+    elective_client_pool_size = config.elective_client_pool_size
+    elective_client_max_life = config.elective_client_max_life
+    is_print_mutex_rules = config.is_print_mutex_rules
+    notify = Notify(
+        _disable_push=config.disable_push,
+        _token=config.wechat_token,
+        _interval_lock=config.minimum_interval,
+        _verbosity=config.verbosity,
+    )
+
+    recognizer = TTShituRecognizer()
+
+    electivePool = Queue(maxsize=elective_client_pool_size)
+    reloginPool = Queue(maxsize=elective_client_pool_size)
+
+    goals = environ.goals  # let N = len(goals);
+    ignored = environ.ignored
+    mutexes = np.zeros(0, dtype=np.uint8)  # uint8 [N][N];
+    delays = np.zeros(0, dtype=np.int32)  # int [N];
+    return
+
+
+
+
 class _ElectiveNeedsLogin(Exception):
     pass
 
@@ -120,6 +165,9 @@ def _dump_respose_content(content, filename):
 
 
 def run_iaaa_loop():
+    # 刷新配置（不在此处不刷新，在启动时统一刷新）
+    # refreshdata()
+
     elective = None
 
     while True:
@@ -238,6 +286,9 @@ def run_iaaa_loop():
 
 
 def run_elective_loop():
+    # 刷新配置（不在此处不刷新，在启动时统一刷新）
+    # refreshdata()
+
     elective = None
     noWait = False
 
@@ -290,14 +341,8 @@ def run_elective_loop():
         client.set_user_agent(random.choice(USER_AGENT_LIST))
         electivePool.put_nowait(client)
 
-    ## print header
-
-    header = "# PKU Auto-Elective Tool v%s (%s) #" % (__version__, __date__)
-    line = "#" + "-" * (len(header) - 2) + "#"
-
-    cout.info(line)
-    cout.info(header)
-    cout.info(line)
+    cout.info("欢迎使用严小希选课小助手！")
+    cout.info("让时光的帷幕，牵动往昔的涟漪，自此汇入晨光！")
     cout.info("")
 
     line = "-" * 30
@@ -549,6 +594,9 @@ def run_elective_loop():
 
                 ## validate captcha first
 
+                captcha_fail_count = 0
+                max_captcha_fails = 5
+                
                 while True:
                     cout.info("Fetch a captcha")
                     r = elective.get_DrawServlet()
@@ -567,12 +615,23 @@ def run_elective_loop():
                         cout.info("Validation passed")
                         break
                     elif res == "0":
-                        cout.info("Validation failed")
+                        captcha_fail_count += 1
+                        cout.info("Validation failed (attempt %d/%d)" % (captcha_fail_count, max_captcha_fails))
                         # notify.send_bark_push(msg=WECHAT_MSG[2], prefix=WECHAT_PREFIX[2])
                         cout.info("Auto error caching skipped for good")
-                        cout.info("Try again")
+                        
+                        if captcha_fail_count >= max_captcha_fails:
+                            cout.warning("Captcha validation failed %d times, skipping this course" % max_captcha_fails)
+                            break
+                        else:
+                            cout.info("Try again")
                     else:
                         cout.warning("Unknown validation result: %s" % res)
+                
+                # 如果验证码失败次数达到上限，跳过当前课程
+                if captcha_fail_count >= max_captcha_fails:
+                    cout.info("Skipping course %s due to captcha validation failures" % course)
+                    continue
 
                 ## try to elect
 

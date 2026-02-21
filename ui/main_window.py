@@ -1,14 +1,21 @@
 """
-主窗口类
+@Author : xiaoce2025
+@File   : main_window.py
+@Date   : 2025-08-29
 """
+
+"""主窗口类"""
 
 import logging
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-                             QLabel, QPushButton, QCheckBox, QTabWidget, QMessageBox)
-from PyQt6.QtCore import QTimer
+                             QLabel, QPushButton, QCheckBox, QTabWidget, QMessageBox,
+                             QFrame, QSizePolicy)
+from PyQt6.QtCore import QTimer, Qt
+from PyQt6.QtGui import QIcon, QFont, QColor, QLinearGradient, QBrush, QPalette, QShortcut, QKeySequence
 from autoelective.environ import Environ
 from ui.config_editor import ConfigEditor
 from ui.log_display import LogDisplay
+from ui.console_window import ConsoleWindow
 from utils.thread_utils import cleanup_environment, cleanup_global_queues, verify_clean_state
 
 class MainWindow(QMainWindow):
@@ -18,55 +25,141 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.init_ui()
         self.setup_auto_elective()
+        self.setup_console_window()
+        
+        # 检查更新
+        from version.update_check import check_update
+        check_update(self)
     
     def init_ui(self):
-        self.setWindowTitle("PKU自动选课程序 v1.0")
+        self.setWindowTitle("严小希选课小助手 2026Spring-v1.2.2")
         self.setGeometry(100, 100, 1200, 800)
+        
+        # 设置应用图标
+        self.setWindowIcon(QIcon(":/icons/app_icon.png"))
         
         # 创建中央部件
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         
-        # 主布局
-        main_layout = QVBoxLayout()
+        # 设置主窗口背景
+        gradient = QLinearGradient(0, 0, 0, 400)
+        gradient.setColorAt(0, QColor("#f0f8ff"))  # 浅蓝色
+
+        gradient.setColorAt(1, QColor("#e6f7ff"))  # 更浅的蓝色
+        palette = self.palette()
+        palette.setBrush(QPalette.ColorRole.Window, QBrush(gradient))
+        self.setPalette(palette)
         
-        # 标题
-        title_label = QLabel("PKU自动选课程序")
-        #title_label.setAlignment(qt.AlignmentFlag.AlignCenter)
-        title_label.setStyleSheet("""
-            QLabel {
-                font-size: 24px;
-                font-weight: bold;
-                color: #2c3e50;
-                padding: 20px;
-                background-color: #ecf0f0;
-                border-radius: 10px;
-                margin: 10px;
+        # 主布局
+        main_layout = QVBoxLayout(central_widget)
+        main_layout.setContentsMargins(15, 15, 15, 15)
+        main_layout.setSpacing(15)
+
+        # 标题区域
+        title_frame = QFrame()
+        title_frame.setStyleSheet("""
+            QFrame {
+                background-color: transparent;
+                border: none;
             }
         """)
-        main_layout.addWidget(title_label)
+
+        title_layout = QHBoxLayout(title_frame)
+        title_layout.setContentsMargins(10, 5, 10, 5)
+
+        # 使用HTML创建彩虹色文字
+        rainbow_text = """
+        <span style="
+            font-family: '华文行楷', 'Microsoft YaHei', sans-serif;
+            font-size: 36px;
+            font-weight: bold;
+        ">
+            <span style="color: #FF0000;">严</span>
+            <span style="color: #FF7F00;">小</span>
+            <span style="color: #FFD700;">希</span>
+            <span style="color: #00FF00;">选</span>
+            <span style="color: #00FFFF;">课</span>
+            <span style="color: #0000FF;">小</span>
+            <span style="color: #8B00FF;">助</span>
+            <span style="color: #FF00FF;">手</span>
+        </span>
+        """
+
+        title_label = QLabel(rainbow_text)
+        title_label.setStyleSheet("""
+            QLabel {
+                background-color: transparent;
+            }
+        """)
+        title_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        title_layout.addWidget(title_label, 0)
+        
+        # 状态和控制区域
+        status_control_frame = QFrame()
+        status_control_frame.setStyleSheet("""
+            QFrame {
+                background-color: white;
+                border-radius: 10px;
+                padding: 5px;
+            }
+        """)
+        status_control_frame.setMaximumHeight(120)
+        
+        status_control_layout = QVBoxLayout(status_control_frame)
+        status_control_layout.setContentsMargins(10, 5, 10, 5)
+        status_control_layout.setSpacing(10)
         
         # 状态显示
         status_layout = QHBoxLayout()
-        self.status_label = QLabel("状态: 未启动")
-        self.status_label.setStyleSheet("""
+        # 标题
+        status_layout.addWidget(title_frame)
+
+        status_title = QLabel("当前运行状态:")
+        status_title.setStyleSheet("""
             QLabel {
-                font-size: 14px;
-                padding: 10px;
-                background-color: #f8f9fa;
-                border: 1px solid #dee2e6;
-                border-radius: 5px;
+                font-size: 16px;
+                font-weight: bold;
+                color: #2c3e50;
             }
         """)
+        status_layout.addWidget(status_title)
+        
+        self.status_label = QLabel("未启动")
+        self.status_label.setStyleSheet("""
+            QLabel {
+                font-size: 16px;
+                font-weight: bold;
+                color: #6c757d;
+                background-color: #f8f9fa;
+                border: 1px solid #dee2e6;
+                border-radius: 15px;
+                padding: 5px 15px;
+            }
+        """)
+        # 上面样式表备用方案添加max-height: 30px
         status_layout.addWidget(self.status_label)
+        
+        # 状态指示灯
+        self.status_indicator = QLabel()
+        self.status_indicator.setFixedSize(20, 20)
+        self.status_indicator.setStyleSheet("""
+            QLabel {
+                background-color: #6c757d;
+                border-radius: 10px;
+            }
+        """)
+        status_layout.addWidget(self.status_indicator)
+        
         status_layout.addStretch()
         
-        main_layout.addLayout(status_layout)
+        #status_control_layout.addLayout(status_layout)
         
         # 控制按钮
         control_layout = QHBoxLayout()
+        control_layout.setSpacing(15)
         
-        # 监控开关
+        # 监控开关（已弃用）
         self.monitor_check = QCheckBox("启动监控")
         self.monitor_check.setStyleSheet("""
             QCheckBox {
@@ -74,28 +167,37 @@ class MainWindow(QMainWindow):
                 padding: 5px;
             }
         """)
+        self.monitor_check.hide()
         
-        self.start_btn = QPushButton("启动选课")
+        self.start_btn = QPushButton()
+        self.start_btn.setIcon(QIcon(":/icons/play_icon.png"))
+        self.start_btn.setText("启动选课")
         self.start_btn.clicked.connect(self.start_auto_elective)
         self.start_btn.setStyleSheet("""
             QPushButton {
                 background-color: #28a745;
                 color: white;
                 border: none;
-                padding: 15px 30px;
+                padding: 12px 25px;
                 font-size: 16px;
+                font-weight: bold;
                 border-radius: 8px;
-                min-width: 120px;
+                min-width: 140px;
             }
             QPushButton:hover {
                 background-color: #218838;
+            }
+            QPushButton:pressed {
+                background-color: #1e7e34;
             }
             QPushButton:disabled {
                 background-color: #6c757d;
             }
         """)
         
-        self.stop_btn = QPushButton("停止选课")
+        self.stop_btn = QPushButton()
+        self.stop_btn.setIcon(QIcon(":/icons/stop_icon.png"))
+        self.stop_btn.setText("停止选课")
         self.stop_btn.clicked.connect(self.stop_auto_elective)
         self.stop_btn.setEnabled(False)
         self.stop_btn.setStyleSheet("""
@@ -103,38 +205,101 @@ class MainWindow(QMainWindow):
                 background-color: #dc3545;
                 color: white;
                 border: none;
-                padding: 15px 30px;
+                padding: 12px 25px;
                 font-size: 16px;
+                font-weight: bold;
                 border-radius: 8px;
-                min-width: 120px;
+                min-width: 140px;
             }
             QPushButton:hover {
                 background-color: #c82333;
+            }
+            QPushButton:pressed {
+                background-color: #bd2130;
             }
             QPushButton:disabled {
                 background-color: #6c757d;
             }
         """)
         
-        control_layout.addWidget(self.monitor_check)
+        control_layout.addStretch()
         control_layout.addWidget(self.start_btn)
         control_layout.addWidget(self.stop_btn)
         control_layout.addStretch()
         
-        main_layout.addLayout(control_layout)
+        status_layout.addLayout(control_layout)
+        status_control_layout.addLayout(status_layout)
+        main_layout.addWidget(status_control_frame)
+        
+        # 标签页区域
+        tab_frame = QFrame()
+        tab_frame.setStyleSheet("""
+            QFrame {
+                background-color: white;
+                border-radius: 10px;
+            }
+        """)
+        
+        tab_layout = QVBoxLayout(tab_frame)
+        tab_layout.setContentsMargins(0, 0, 0, 0)
         
         # 标签页
-        tab_widget = QTabWidget()
+        self.tab_widget = QTabWidget()
+        self.tab_widget.setStyleSheet("""
+            QTabWidget::pane {
+                border: 1px solid #dee2e6;
+                border-top: none;
+                border-radius: 0 0 10px 10px;
+                background: white;
+            }
+            
+            QTabBar::tab {
+                background: #f8f9fa;
+                border: 1px solid #dee2e6;
+                border-bottom: none;
+                border-top-left-radius: 8px;
+                border-top-right-radius: 8px;
+                padding: 8px 20px;
+                margin-right: 2px;
+                font-size: 14px;
+                color: #6c757d;
+            }
+            
+            QTabBar::tab:selected {
+                background: white;
+                color: #007bff;
+                font-weight: bold;
+                border-bottom: 2px solid #007bff;
+            }
+            
+            QTabBar::tab:hover {
+                background: #e9ecef;
+            }
+        """)
         
         # 设置标签页
         self.config_editor = ConfigEditor()
-        tab_widget.addTab(self.config_editor, "设置")
+        self.tab_widget.addTab(self.config_editor, QIcon(":/icons/settings_icon.png"), "设置")
         
         # 日志标签页
         self.log_display = LogDisplay()
-        tab_widget.addTab(self.log_display, "日志")
+        self.tab_widget.addTab(self.log_display, QIcon(":/icons/log_icon.png"), "日志")
         
-        main_layout.addWidget(tab_widget)
+        tab_layout.addWidget(self.tab_widget)
+        main_layout.addWidget(tab_frame, 1)  # 添加拉伸因子1使标签页占据剩余空间
+        
+        # 页脚
+        footer_label = QLabel("请不要使用刷课机刷课，否则将受到学校严厉处分！ 本项目仅供学习交流使用，请勿在公开场合传播此项目！ 对于不正当使用本项目所造成的后果，暂时不能给你明确的答复！ 不正当使用过程存在风险，USE AT YOUR OWN RISK，这个需要你自己衡量!")
+        footer_label.setStyleSheet("""
+            QLabel {
+                font-size: 12px;
+                color: #6c757d;
+                text-align: center;
+                padding: 5px;
+            }
+        """)
+        footer_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        main_layout.addWidget(footer_label)
         
         # 初始化日志系统
         self.setup_logging()
@@ -143,8 +308,23 @@ class MainWindow(QMainWindow):
         self.status_timer = QTimer()
         self.status_timer.timeout.connect(self.check_thread_status)
         self.status_timer.start(2000)  # 每2秒检查一次
-        
-        central_widget.setLayout(main_layout)
+    
+    def setup_console_window(self):
+        """设置Console窗口和快捷键"""
+        # 创建Console窗口（但不立即显示）
+        self.console_window = ConsoleWindow(self)
+        # 创建快捷键 Ctrl+Shift+I
+        self.console_shortcut = QShortcut(QKeySequence("Ctrl+Shift+I"), self)
+        self.console_shortcut.activated.connect(self.toggle_console_window)
+    
+    def toggle_console_window(self):
+        """切换Console窗口的显示状态"""
+        if self.console_window.isVisible():
+            self.console_window.hide()
+        else:
+            self.console_window.show()
+            self.console_window.raise_()  # 将窗口置于最前
+            self.console_window.activateWindow()  # 激活窗口
     
     def setup_auto_elective(self):
         """设置自动选课系统"""
@@ -175,6 +355,8 @@ class MainWindow(QMainWindow):
     def start_auto_elective(self):
         """启动自动选课"""
         try:
+            # 自动切换到日志页面
+            self.tab_widget.setCurrentIndex(1)
             if not self.is_running:
                 # 确保环境是干净的
                 if hasattr(self.environ, 'iaaa_loop_thread') and self.environ.iaaa_loop_thread is not None:
@@ -191,10 +373,10 @@ class MainWindow(QMainWindow):
                 
                 # 验证清理是否成功
                 if not verify_clean_state(self.environ):
-                    raise Exception("全局状态清理失败，无法启动程序")
+                    raise Exception("全局状态清理失败，无法启动程序！")
                 
                 # 使用cli的启动逻辑
-                from autoelective.cli import create_default_parser, create_default_threads, setup_default_environ
+                from autoelective.cli import create_default_parser, create_default_threads_reload, setup_default_environ
                 
                 # 创建解析器并设置默认选项
                 parser = create_default_parser()
@@ -207,7 +389,7 @@ class MainWindow(QMainWindow):
                 setup_default_environ(options, args, self.environ)
                 
                 # 创建线程
-                self.threads = create_default_threads(options, args, self.environ)
+                self.threads = create_default_threads_reload(options, args, self.environ)
                 
                 # 启动线程
                 for thread in self.threads:
@@ -215,11 +397,28 @@ class MainWindow(QMainWindow):
                     thread.start()
                 
                 self.is_running = True
-                self.status_label.setText("状态: 运行中")
+                self.status_label.setText("运行中")
+                self.status_label.setStyleSheet("""
+                    QLabel {
+                        font-size: 16px;
+                        font-weight: bold;
+                        color: #28a745;
+                        background-color: #f8f9fa;
+                        border: 1px solid #dee2e6;
+                        border-radius: 15px;
+                        padding: 5px 15px;
+                    }
+                """)
+                self.status_indicator.setStyleSheet("""
+                    QLabel {
+                        background-color: #28a745;
+                        border-radius: 10px;
+                    }
+                """)
                 self.start_btn.setEnabled(False)
                 self.stop_btn.setEnabled(True)
                 
-                self.log_display.add_log("自动选课程序已启动")
+                self.log_display.add_log("选课任务正在执行...")
                 if options.with_monitor:
                     self.log_display.add_log("监控功能已启用")
                 
@@ -230,11 +429,28 @@ class MainWindow(QMainWindow):
             # 启动失败时清理状态
             self.is_running = False
             self.threads = []
-            self.status_label.setText("状态: 启动失败")
+            self.status_label.setText("启动失败")
+            self.status_label.setStyleSheet("""
+                QLabel {
+                    font-size: 16px;
+                    font-weight: bold;
+                    color: #dc3545;
+                    background-color: #f8f9fa;
+                    border: 1px solid #dee2e6;
+                    border-radius: 15px;
+                    padding: 5px 15px;
+                }
+            """)
+            self.status_indicator.setStyleSheet("""
+                QLabel {
+                    background-color: #dc3545;
+                    border-radius: 10px;
+                }
+            """)
             self.start_btn.setEnabled(True)
             self.stop_btn.setEnabled(False)
             
-            # 清理环境
+            # 清理环境状态
             cleanup_environment(self.environ)
     
     def stop_auto_elective(self):
@@ -244,25 +460,79 @@ class MainWindow(QMainWindow):
                 # 停止所有线程
                 for thread in self.threads:
                     if thread.is_alive():
-                        # 尝试优雅地停止线程
-                        # 注意：这里只是标记状态，实际的停止逻辑需要在各个线程中实现
-                        pass
+                        # 强制终止线程（临时用）
+                        self._force_stop_thread(thread)
+
                 
                 # 清空线程列表
                 self.threads = []
                 self.is_running = False
-                self.status_label.setText("状态: 已停止")
+                self.status_label.setText("已停止")
+                self.status_label.setStyleSheet("""
+                    QLabel {
+                        font-size: 16px;
+                        font-weight: bold;
+                        color: #6c757d;
+                        background-color: #f8f9fa;
+                        border: 1px solid #dee2e6;
+                        border-radius: 15px;
+                        padding: 5px 15px;
+                    }
+                """)
+                self.status_indicator.setStyleSheet("""
+                    QLabel {
+                        background-color: #6c757d;
+                        border-radius: 10px;
+                    }
+                """)
                 self.start_btn.setEnabled(True)
                 self.stop_btn.setEnabled(False)
                 
                 # 清理环境状态
                 cleanup_environment(self.environ)
                 
-                self.log_display.add_log("自动选课程序已停止")
+                self.log_display.add_log("选课任务已终止")
                 
         except Exception as e:
             QMessageBox.critical(self, "错误", f"停止失败: {str(e)}")
             self.log_display.add_log(f"停止失败: {str(e)}")
+
+    # 强制线程终止（临时，后续待修改autoelective本身代码后做适配）
+    def _force_stop_thread(self, thread):
+        """强制停止线程"""
+        try:
+            # 使用PyQt6的线程终止方法（如果线程是QThread）
+            if hasattr(thread, 'terminate'):
+                thread.terminate()
+                thread.wait()  # 等待线程实际结束
+                self.log_display.add_log(f"已强制终止线程: {thread.name}")
+            else:
+                # 对于非QThread，使用更强制的方法
+                import ctypes
+                
+                if not thread.is_alive():
+                    return
+                    
+                # 获取线程ID
+                thread_id = thread.ident
+                
+                # 使用ctypes调用系统API强制终止线程
+                res = ctypes.pythonapi.PyThreadState_SetAsyncExc(
+                    ctypes.c_long(thread_id),
+                    ctypes.py_object(SystemExit)
+                )
+                
+                if res == 0:
+                    self.log_display.add_log(f"无法终止线程 {thread_id}")
+                elif res != 1:
+                    # 如果返回值不是1，说明调用失败
+                    ctypes.pythonapi.PyThreadState_SetAsyncExc(thread_id, 0)
+                    self.log_display.add_log(f"终止线程 {thread_id} 失败")
+                else:
+                    self.log_display.add_log(f"已强制终止线程: {thread_id}")
+                    
+        except Exception as e:
+            self.log_display.add_log(f"终止线程时出错: {str(e)}")
     
     def check_thread_status(self):
         """检查线程状态"""
@@ -286,7 +556,7 @@ class MainWindow(QMainWindow):
         if self.is_running:
             reply = QMessageBox.question(
                 self, "确认退出", 
-                "程序正在运行中，确定要退出吗？",
+                "选课程序正在运行中，确定要退出吗？",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No
             )

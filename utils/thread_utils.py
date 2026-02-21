@@ -18,7 +18,7 @@ def cleanup_environment(environ):
         # 重置环境状态
         environ.__init__()
         
-        # 清理全局队列（这是关键！）
+        # 清理全局队列
         cleanup_global_queues()
         
         return True
