@@ -1052,7 +1052,7 @@ class ConfigEditor(QWidget):
         layout = QVBoxLayout()
         layout.setContentsMargins(10, 10, 10, 10)
 
-        group = MQGroupBox("通知设置")
+        group = MQGroupBox("通知设置（开发中，敬请期待）")
         group_layout = QVBoxLayout()
         group_layout.setContentsMargins(10, 10, 10, 10)
         group_layout.setSpacing(10)
@@ -1088,10 +1088,11 @@ class ConfigEditor(QWidget):
         yanxx_weixin_user_layout.addRow(test_button)
         self.yanxx_weixin_user_container.setLayout(yanxx_weixin_user_layout)
         self.yanxx_weixin_user_container.setVisible(False)  # 初始隐藏
-        # 添加语音和微信提醒开关
-        group_layout.addWidget(self.create_3_inputs_a_line((self.create_label_with_tooltip(
-            "语音提醒：", "是否开启语音提醒"), self.yanxx_voice_check), (self.create_label_with_tooltip(
-                "微信提醒与控制：", "是否开启微信提醒与控制"), self.yanxx_weixin_check)))
+        # 添加语音提醒开关（初始隐藏）
+        voice_widget = self.create_3_inputs_a_line((self.create_label_with_tooltip(
+            "语音提醒：", "是否开启语音提醒"), self.yanxx_voice_check))
+        voice_widget.hide()
+        group_layout.addWidget(voice_widget)
         # 添加微信提醒名单和测试容器
         group_layout.addWidget(self.yanxx_weixin_user_container)
         # 连接微信监听状态复选框状态改变信号
@@ -1142,8 +1143,12 @@ class ConfigEditor(QWidget):
 
         # 创建单选按钮
         self.local_model_radio = QRadioButton("内置本地识别模型")
-        self.tt_platform_radio = QRadioButton("TT商用识别平台")
+        self.tt_platform_radio = QRadioButton("高准确率混合验证码识别系统（本地 + TT商用识图平台）")
         self.custom_system_radio = QRadioButton("自定义验证码识别系统")
+
+        # 隐藏内置本地识别模型和自定义验证码识别系统选项
+        self.local_model_radio.hide()
+        self.custom_system_radio.hide()
 
         # 默认选择第一个选项
         self.tt_platform_radio.setChecked(True)

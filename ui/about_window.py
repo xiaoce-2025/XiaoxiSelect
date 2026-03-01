@@ -157,12 +157,12 @@ class YanPage(QWidget):
         # 添加作品部分
         works_container = QWidget()
         works_layout = QVBoxLayout(works_container)
-        works_title = self.create_section_title("📚 代表作品")
+        works_title = self.create_section_title("📚 相关作品")
         works_layout.addWidget(works_title)
         
         works_items = [
-            ("《未名湖畔那银杏》", "https://www.cxxdgc.cn/blog/somewishesin2025"),
-            ("《严小希进厂记》", "https://www.cxxdgc.cn/blog/yanxx/yanxxjinchangji"),
+            ("严小希选课小助手-补退选网页版（自动识别验证码）", "https://www.cxxdgc.cn/blog/project/yxxelective_cognition"),
+            ("严小希选课小助手-预选网页版（自动投点、显示优化、自动过滤、选课推荐）", "https://www.cxxdgc.cn/blog/project/yxxelective"),
             ("蕉学网2025秋季更新回退插件（获取回放下载链接）-安装指南", "https://www.cxxdgc.cn/blog/project/videodownload2025autumn_addition")
         ]
         
