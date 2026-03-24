@@ -2,13 +2,18 @@
 配置文件编辑器界面
 """
 import os
+import random
+import string
+import time
+from pathlib import Path
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout,
                              QPushButton, QLabel,
                              QCheckBox, QComboBox,
                              QFormLayout, QMessageBox, QScrollArea, QFrame, QRadioButton,
                              QStackedWidget, QDialog, QTableWidget, QTableWidgetItem,
-                             QVBoxLayout, QDialogButtonBox, QListWidgetItem, QButtonGroup)
-from PyQt6.QtCore import Qt, QTimer
+                             QVBoxLayout, QDialogButtonBox, QListWidgetItem, QButtonGroup, QLineEdit)
+from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal
+from PyQt6.QtGui import QPixmap, QImage, QPainter, QColor
 from config.config_manager import ConfigManager
 import re
 import pyperclip  # 用于访问剪贴板
@@ -17,6 +22,242 @@ from datetime import datetime
 # 自定义的各种组件
 from ui.components.MQGroupBox import MQGroupBox
 from ui.components.MQInputComponents import MQDoubleSpinBox, MQSpinBox, MQLineEdit
+
+
+def _get_wxauto_src_path() -> Path:
+    root = Path(__file__).resolve().parent.parent
+    return root / "wxauto" / "src"
+
+
+def _ensure_wxauto_importable():
+    import sys
+
+    src = _get_wxauto_src_path()
+    if str(src) not in sys.path:
+        sys.path.insert(0, str(src))
+
+
+class WeixinNotifyWorker(QThread):
+    """微信通知启用流程工作线程。"""
+
+    qr_ready = pyqtSignal(str)
+    verify_prompt = pyqtSignal(str)
+    result_ready = pyqtSignal(bool, str)
+
+    def __init__(self, need_login: bool, verify_text: str, parent=None):
+        super().__init__(parent)
+        self.need_login = need_login
+        self.verify_text = verify_text
+        self._cancelled = False
+        self._session = None
+
+    def request_cancel(self):
+        self._cancelled = True
+        if self._session is not None:
+            try:
+                self._session.close()
+            except Exception:
+                pass
+
+    def run(self):
+        session = None
+        try:
+            _ensure_wxauto_importable()
+            from weixin_platform.api import WeixinApiSession
+
+            session = WeixinApiSession()
+            self._session = session
+
+            if self._cancelled:
+                self.result_ready.emit(False, "微信通知流程已取消。")
+                return
+
+            if self.need_login:
+                flow = session.login(step_mode=True)
+                qr_link = str(next(flow))
+                if self._cancelled:
+                    self.result_ready.emit(False, "微信通知流程已取消。")
+                    return
+                self.qr_ready.emit(qr_link)
+                login_ok = bool(next(flow))
+                if self._cancelled:
+                    self.result_ready.emit(False, "微信通知流程已取消。")
+                    return
+                if not login_ok:
+                    self.result_ready.emit(False, "微信扫码登录未通过或已超时，请重试。")
+                    return
+
+            self.verify_prompt.emit(self.verify_text)
+            verified = bool(session.start_listener_process(self.verify_text, timeout_s=120))
+            if self._cancelled:
+                self.result_ready.emit(False, "微信通知流程已取消。")
+                return
+            if verified:
+                self.result_ready.emit(True, "微信通知已启用，监听校验通过。")
+            else:
+                self.result_ready.emit(False, "监听校验未通过，请发送校验码后重试。")
+
+        except Exception as e:
+            if self._cancelled:
+                self.result_ready.emit(False, "微信通知流程已取消。")
+            else:
+                self.result_ready.emit(False, f"微信通知流程失败: {str(e)}")
+        finally:
+            if session is not None:
+                try:
+                    session.close()
+                except Exception:
+                    pass
+            self._session = None
+
+
+class _ConfirmCloseDialog(QDialog):
+    """关闭时二次确认的流程弹窗基类。"""
+
+    def __init__(self, title: str, close_confirm_text: str, on_cancel, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        self.setModal(True)
+        self.setWindowModality(Qt.WindowModality.ApplicationModal)
+        self._close_confirm_text = close_confirm_text
+        self._on_cancel = on_cancel
+        self._force_close = False
+
+    def close_without_confirm(self):
+        self._force_close = True
+        self.close()
+
+    def closeEvent(self, event):
+        if self._force_close:
+            event.accept()
+            return
+
+        reply = QMessageBox.question(
+            self,
+            "确认关闭",
+            self._close_confirm_text,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            if callable(self._on_cancel):
+                self._on_cancel()
+            event.accept()
+        else:
+            event.ignore()
+
+
+class WeixinQrDialog(_ConfirmCloseDialog):
+    """展示微信扫码二维码的弹窗。"""
+
+    def __init__(self, qr_link: str, on_cancel=None, parent=None):
+        super().__init__(
+            title="微信登录",
+            close_confirm_text="正在进行微信登录流程，是否确认关闭？",
+            on_cancel=on_cancel,
+            parent=parent,
+        )
+        self.resize(420, 520)
+
+        layout = QVBoxLayout(self)
+        tip = QLabel("请使用微信扫码登录，扫码成功后系统将自动进行后续校验。")
+        tip.setWordWrap(True)
+        layout.addWidget(tip)
+
+        self.qr_label = QLabel()
+        self.qr_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.qr_label.setMinimumHeight(320)
+        layout.addWidget(self.qr_label)
+
+        self.link_label = QLabel(f"<a href=\"{qr_link}\">若二维码无法显示，点击打开登录链接</a>")
+        self.link_label.setOpenExternalLinks(True)
+        self.link_label.setWordWrap(True)
+        layout.addWidget(self.link_label)
+
+        self._render_qr(qr_link)
+
+    def _render_qr(self, qr_link: str):
+        try:
+            import qrcode
+
+            qr = qrcode.QRCode(border=2)
+            qr.add_data(qr_link)
+            qr.make(fit=True)
+            matrix = qr.get_matrix()
+
+            if not matrix:
+                raise RuntimeError("empty qr matrix")
+
+            modules = len(matrix)
+            module_size = 8
+            img_size = modules * module_size
+
+            image = QImage(img_size, img_size, QImage.Format.Format_RGB32)
+            image.fill(QColor("white"))
+
+            painter = QPainter(image)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QColor("black"))
+
+            for y, row in enumerate(matrix):
+                for x, cell in enumerate(row):
+                    if cell:
+                        painter.drawRect(
+                            x * module_size,
+                            y * module_size,
+                            module_size,
+                            module_size,
+                        )
+            painter.end()
+
+            pixmap = QPixmap.fromImage(image)
+            self.qr_label.setPixmap(
+                pixmap.scaled(320, 320, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            )
+        except Exception as e:
+            self.qr_label.setText(f"二维码生成失败，请点击下方链接继续登录。\n原因: {str(e)}")
+
+
+class WeixinVerifyDialog(_ConfirmCloseDialog):
+    """展示微信校验码的弹窗。"""
+
+    def __init__(self, verify_text: str, on_cancel=None, on_switch_account=None, parent=None):
+        super().__init__(
+            title="监听验证",
+            close_confirm_text="正在进行微信校验流程，是否确认关闭？",
+            on_cancel=on_cancel,
+            parent=parent,
+        )
+        self._on_switch_account = on_switch_account
+        self.resize(460, 220)
+
+        layout = QVBoxLayout(self)
+        tip = QLabel("已启动监听进程，请向机器人发送下方校验码。")
+        tip.setWordWrap(True)
+        layout.addWidget(tip)
+
+        code = QLineEdit(verify_text)
+        code.setReadOnly(True)
+        code.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        code.setStyleSheet(
+            "QLineEdit { font-size: 18px; font-weight: bold; color: #fd7e14;"
+            " border: 1px solid #dee2e6; border-radius: 8px; padding: 10px; background: #ffffff; }"
+        )
+        code.setToolTip("可选中并复制验证码")
+        layout.addWidget(code)
+
+        hint = QLabel("验证成功后将自动关闭本弹窗。")
+        hint.setStyleSheet("QLabel { color: #6c757d; }")
+        layout.addWidget(hint)
+
+        switch_link = QLabel('<a href="#switch_account">本账号已不可用/使用其他账号？点此切换账号</a>')
+        switch_link.linkActivated.connect(self._handle_switch_account)
+        layout.addWidget(switch_link)
+
+    def _handle_switch_account(self, _):
+        self.close_without_confirm()
+        if callable(self._on_switch_account):
+            self._on_switch_account()
 
 
 class ConfigEditor(QWidget):
@@ -533,10 +774,16 @@ class ConfigEditor(QWidget):
                 notification_data = config_data['notification']
                 self.yanxx_voice_check.setChecked(
                     notification_data.get('yanxx_voice', False))
+                self.yanxx_weixin_check.blockSignals(True)
                 self.yanxx_weixin_check.setChecked(
                     notification_data.get('yanxx_weixin', False))
+                self.yanxx_weixin_check.blockSignals(False)
                 self.yanxx_weixin_user_edit.setText(
                     notification_data.get('yanxx_weixin_user', ''))
+                if self.yanxx_weixin_check.isChecked():
+                    self.weixin_status_label.setText("微信通知已勾选，建议启动前重新验证")
+                    self.weixin_status_label.setStyleSheet("QLabel { color: #fd7e14; }")
+                self._validate_weixin_notification_on_load()
 
             # 加载API密钥设置
             if 'apikey' in config_data:
@@ -1052,52 +1299,61 @@ class ConfigEditor(QWidget):
         layout = QVBoxLayout()
         layout.setContentsMargins(10, 10, 10, 10)
 
-        group = MQGroupBox("通知设置（开发中，敬请期待）")
+        group = MQGroupBox("通知设置")
         group_layout = QVBoxLayout()
         group_layout.setContentsMargins(10, 10, 10, 10)
         group_layout.setSpacing(10)
 
+        # 保留旧字段用于配置兼容，不在界面显示
         self.yanxx_voice_check = QCheckBox()
-        self.yanxx_weixin_check = QCheckBox()
-        self.yanxx_weixin_user_edit = MQLineEdit()
+        self.yanxx_voice_check.setChecked(False)
 
-        # 创建微信昵称容器（初始隐藏）
+        self.yanxx_weixin_check = QCheckBox()
+        self.yanxx_weixin_check.setText("微信通知")
+
+        self.yanxx_weixin_user_edit = MQLineEdit()
+        self.yanxx_weixin_user_edit.setPlaceholderText("填写微信账号昵称（用于重连或重激活）")
+
+        group_layout.addWidget(self.yanxx_weixin_check)
+
+        self.weixin_status_label = QLabel("未启用微信通知")
+        self.weixin_status_label.setStyleSheet("QLabel { color: #6c757d; }")
+        group_layout.addWidget(self.weixin_status_label)
+
+        # 登录信息区域永久隐藏（仅保留字段用于兼容配置）
         self.yanxx_weixin_user_container = QWidget()
         yanxx_weixin_user_layout = QFormLayout()
         yanxx_weixin_user_layout.addRow(self.create_label_with_tooltip(
-            "监听微信账号昵称：", "请输入进行微信提醒与控制的账号的昵称"), self.yanxx_weixin_user_edit)
-        test_button = QPushButton("测试通知功能")
-        test_button.setStyleSheet("""
-            QPushButton {
-                background-color: #17a2b8;
-                color: white;
-                border: none;
-                padding: 10px 15px;
-                border-radius: 6px;
-                font-size: 11pt;
-                font-weight: 500;
-            }
-            QPushButton:hover {
-                background-color: #138496;
-            }
-            QPushButton:pressed {
-                background-color: #117a8b;
-            }
-        """)
-        test_button.clicked.connect(self.start_notification_test)
-        yanxx_weixin_user_layout.addRow(test_button)
+            "微信账号昵称：", "用于微信通知账号标识与重激活操作"), self.yanxx_weixin_user_edit)
         self.yanxx_weixin_user_container.setLayout(yanxx_weixin_user_layout)
-        self.yanxx_weixin_user_container.setVisible(False)  # 初始隐藏
-        # 添加语音提醒开关（初始隐藏）
-        voice_widget = self.create_3_inputs_a_line((self.create_label_with_tooltip(
-            "语音提醒：", "是否开启语音提醒"), self.yanxx_voice_check))
-        voice_widget.hide()
-        group_layout.addWidget(voice_widget)
-        # 添加微信提醒名单和测试容器
+        self.yanxx_weixin_user_container.setVisible(False)
         group_layout.addWidget(self.yanxx_weixin_user_container)
-        # 连接微信监听状态复选框状态改变信号
+
+        action_layout = QHBoxLayout()
+        action_layout.setContentsMargins(0, 0, 0, 0)
+        action_layout.setSpacing(12)
+
+        self.reactivate_link = QLabel('<a href="#reactivate">重新激活账号</a>')
+        self.reactivate_link.setVisible(False)
+        self.reactivate_link.linkActivated.connect(self.on_reactivate_account)
+        action_layout.addWidget(self.reactivate_link)
+
+        self.switch_account_link = QLabel('<a href="#switch_account">切换账号</a>')
+        self.switch_account_link.setVisible(False)
+        self.switch_account_link.linkActivated.connect(self.on_switch_account)
+        action_layout.addWidget(self.switch_account_link)
+        action_layout.addStretch()
+
+        group_layout.addLayout(action_layout)
+
+        self.weixin_worker = None
+        self.weixin_qr_dialog = None
+        self.weixin_verify_dialog = None
+        self._weixin_flow_cancelling = False
+        self._set_weixin_checkbox_enabled(True)
+
         self.yanxx_weixin_check.stateChanged.connect(
-            self.yanxx_weixin_user_visibility)
+            self.on_weixin_notify_toggled)
 
         group.setLayout(group_layout)
         layout.addWidget(group)
@@ -1106,31 +1362,255 @@ class ConfigEditor(QWidget):
         return widget
 
     def yanxx_weixin_user_visibility(self, state):
-        """根据微信提醒复选框状态显示/隐藏微信昵称"""
-        self.yanxx_weixin_user_container.setVisible(
-            state == Qt.CheckState.Checked.value)
+        """微信昵称输入框永久隐藏，仅保留配置兼容字段。"""
+        self.yanxx_weixin_user_container.setVisible(False)
 
     def start_notification_test(self):
         """启动通知测试进程"""
-        # 这里添加启动通知测试进程的代码
-        # 在实际应用中，这里会调用通知系统的测试功能
+        QMessageBox.information(self, "提示", "请使用“微信通知”复选框进行启用与验证。")
 
-        # 示例：模拟测试过程
-        QMessageBox.information(self, "通知测试", "正在启动通知测试进程...")
-        success = False
+    def _generate_verify_text(self):
+        suffix = "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
+        return f"VERIFY-{suffix}"
+
+    def _has_weixin_login_info(self):
         try:
-            from wxauto4 import WeChat
-            wx = WeChat()
-            wx.SendMsg(self.yanxx_weixin_user_edit.text(), "[系统自检]信息发送测试")
-            wx.StopListening()
-            del wx
-        except Exception as e:
-            print(e)
+            _ensure_wxauto_importable()
+            from weixin_platform.api_client import TokenStore
+            from weixin_platform.config import load_settings
+
+            settings = load_settings()
+            store = TokenStore(settings.token_file)
+            return bool(store.load())
+        except Exception:
+            return False
+
+    def _get_weixin_last_message_time_ms(self):
+        try:
+            _ensure_wxauto_importable()
+            from weixin_platform.api_client import TokenStore
+            from weixin_platform.config import load_settings
+
+            settings = load_settings()
+            store = TokenStore(settings.token_file)
+            return store.load_last_user_message_time_ms()
+        except Exception:
+            return None
+
+    def _is_weixin_login_stale(self, max_age_hours=20):
+        last_ts_ms = self._get_weixin_last_message_time_ms()
+        if not last_ts_ms:
+            return False
+        age_s = time.time() - (last_ts_ms / 1000.0)
+        return age_s > max_age_hours * 3600
+
+    def _validate_weixin_notification_on_load(self):
+        """加载配置后校验微信通知状态并按需修正配置。"""
+        if not self.yanxx_weixin_check.isChecked():
+            self._update_account_action_links()
+            return
+
+        has_login = self._has_weixin_login_info()
+        if not has_login:
+            self.yanxx_weixin_check.blockSignals(True)
+            self.yanxx_weixin_check.setChecked(False)
+            self.yanxx_weixin_check.blockSignals(False)
+            self.weixin_status_label.setText("未检测到微信登录信息，已自动关闭微信通知")
+            self.weixin_status_label.setStyleSheet("QLabel { color: #dc3545; }")
+            self._update_account_action_links()
+            self.save_non_course_configs()
+            return
+
+        if self._is_weixin_login_stale(max_age_hours=20):
+            self.weixin_status_label.setText("最近微信消息已超过 20 小时，正在强制重新激活...")
+            self.weixin_status_label.setStyleSheet("QLabel { color: #fd7e14; font-weight: bold; }")
+            self._update_account_action_links()
+            QTimer.singleShot(500, lambda: self._start_weixin_notify_flow(force_login=True))
+            return
+
+        self._update_account_action_links()
+
+    def _update_account_action_links(self):
+        has_login = self._has_weixin_login_info()
+        enabled = self.yanxx_weixin_check.isChecked()
+        self.reactivate_link.setVisible(enabled)
+        self.switch_account_link.setVisible(enabled and has_login)
+
+    def _set_weixin_checkbox_enabled(self, enabled: bool):
+        self.yanxx_weixin_check.setEnabled(enabled)
+
+    def _start_weixin_notify_flow(self, force_login=False):
+        if self._weixin_flow_cancelling:
+            self.yanxx_weixin_check.blockSignals(True)
+            self.yanxx_weixin_check.setChecked(False)
+            self.yanxx_weixin_check.blockSignals(False)
+            self.weixin_status_label.setText("微信校验流程正在取消，请稍后重试。")
+            self.weixin_status_label.setStyleSheet("QLabel { color: #6c757d; }")
+            self._set_weixin_checkbox_enabled(False)
+            self.save_non_course_configs()
+            return
+
+        if self.weixin_worker is not None and self.weixin_worker.isRunning():
+            QMessageBox.information(self, "提示", "微信校验流程正在进行中，请稍候。")
+            self.yanxx_weixin_check.blockSignals(True)
+            self.yanxx_weixin_check.setChecked(False)
+            self.yanxx_weixin_check.blockSignals(False)
+            self.save_non_course_configs()
+            return
+
+        self._close_weixin_flow_dialogs()
+
+        has_login = self._has_weixin_login_info()
+        need_login = force_login or (not has_login)
+        verify_text = self._generate_verify_text()
+
+        self.weixin_status_label.setText("正在启动微信通知流程...")
+        self.weixin_status_label.setStyleSheet("QLabel { color: #17a2b8; }")
+        self._update_account_action_links()
+
+        self.weixin_worker = WeixinNotifyWorker(need_login=need_login, verify_text=verify_text, parent=self)
+        self.weixin_worker.qr_ready.connect(self.on_weixin_qr_ready)
+        self.weixin_worker.verify_prompt.connect(self.on_weixin_verify_prompt)
+        self.weixin_worker.result_ready.connect(self.on_weixin_result_ready)
+        self.weixin_worker.finished.connect(self.on_weixin_worker_finished)
+        self.weixin_worker.start()
+
+    def on_weixin_notify_toggled(self, state):
+        enabled = state == Qt.CheckState.Checked.value
+        if not enabled:
+            self.weixin_status_label.setText("未启用微信通知")
+            self.weixin_status_label.setStyleSheet("QLabel { color: #6c757d; }")
+            self.reactivate_link.setVisible(False)
+            self.switch_account_link.setVisible(False)
+            self.save_non_course_configs()
+            return
+
+        self._start_weixin_notify_flow(force_login=False)
+
+    def on_weixin_qr_ready(self, qr_link):
+        if self.weixin_qr_dialog is not None:
+            self.weixin_qr_dialog.close_without_confirm()
+            self.weixin_qr_dialog = None
+
+        self.weixin_qr_dialog = WeixinQrDialog(
+            qr_link,
+            on_cancel=lambda: self._cancel_weixin_notify_flow("微信登录流程已取消。"),
+            parent=self,
+        )
+        self.weixin_qr_dialog.show()
+
+    def on_weixin_verify_prompt(self, verify_text):
+        self._update_account_action_links()
+        self.weixin_status_label.setText(f"请在微信中发送校验码：{verify_text}")
+        self.weixin_status_label.setStyleSheet("QLabel { color: #fd7e14; font-weight: bold; }")
+        if self.weixin_verify_dialog is not None:
+            self.weixin_verify_dialog.close_without_confirm()
+            self.weixin_verify_dialog = None
+
+        self.weixin_verify_dialog = WeixinVerifyDialog(
+            verify_text,
+            on_cancel=lambda: self._cancel_weixin_notify_flow("微信校验流程已取消。"),
+            on_switch_account=lambda: self.on_switch_account(None),
+            parent=self,
+        )
+        self.weixin_verify_dialog.show()
+
+    def on_weixin_result_ready(self, success, message):
+        self._close_weixin_flow_dialogs()
+
+        # 取消流程结束时，不再弹失败提示框。
+        if self._weixin_flow_cancelling and (not success):
+            self.weixin_status_label.setText(message or "微信通知流程已取消。")
+            self.weixin_status_label.setStyleSheet("QLabel { color: #6c757d; }")
+            self.yanxx_weixin_check.blockSignals(True)
+            self.yanxx_weixin_check.setChecked(False)
+            self.yanxx_weixin_check.blockSignals(False)
+            self._update_account_action_links()
+            self.save_non_course_configs()
+            return
 
         if success:
-            QMessageBox.information(self, "测试成功", "通知功能测试成功！")
+            self.weixin_status_label.setText("微信通知已启用并验证成功")
+            self.weixin_status_label.setStyleSheet("QLabel { color: #28a745; font-weight: bold; }")
+            QMessageBox.information(self, "成功", message)
         else:
-            QMessageBox.warning(self, "测试失败", "通知功能测试失败，请检查配置")
+            self.weixin_status_label.setText("微信通知验证失败")
+            self.weixin_status_label.setStyleSheet("QLabel { color: #dc3545; font-weight: bold; }")
+            QMessageBox.warning(self, "失败", message)
+            self.yanxx_weixin_check.setChecked(False)
+
+        self._update_account_action_links()
+        self.save_non_course_configs()
+
+    def on_weixin_worker_finished(self):
+        self.weixin_worker = None
+        self._weixin_flow_cancelling = False
+        self._set_weixin_checkbox_enabled(True)
+
+    def _close_weixin_flow_dialogs(self):
+        if self.weixin_verify_dialog is not None:
+            self.weixin_verify_dialog.close_without_confirm()
+            self.weixin_verify_dialog = None
+        if self.weixin_qr_dialog is not None:
+            self.weixin_qr_dialog.close_without_confirm()
+            self.weixin_qr_dialog = None
+
+    def _kill_current_weixin_flow_instance(self):
+        """仅杀灭当前激活流程实例（不改动勾选状态），用于切换账号前置清理。"""
+        self._weixin_flow_cancelling = True
+
+        worker = self.weixin_worker
+        if worker is not None:
+            worker.request_cancel()
+            if worker.isRunning():
+                worker.terminate()
+                worker.wait(800)
+            self.weixin_worker = None
+
+        self._close_weixin_flow_dialogs()
+        self._weixin_flow_cancelling = False
+        self._set_weixin_checkbox_enabled(True)
+
+    def _cancel_weixin_notify_flow(self, message="微信通知流程已取消。"):
+        self._weixin_flow_cancelling = True
+        self._set_weixin_checkbox_enabled(False)
+
+        worker = self.weixin_worker
+        if worker is not None:
+            # 先请求优雅取消，再立即终止线程实例，避免长时间等待。
+            worker.request_cancel()
+            if worker.isRunning():
+                worker.terminate()
+                worker.wait(800)
+            self.weixin_worker = None
+
+        self._close_weixin_flow_dialogs()
+
+        self.yanxx_weixin_check.blockSignals(True)
+        self.yanxx_weixin_check.setChecked(False)
+        self.yanxx_weixin_check.blockSignals(False)
+        self.weixin_status_label.setText(message)
+        self.weixin_status_label.setStyleSheet("QLabel { color: #6c757d; }")
+        self.reactivate_link.setVisible(False)
+        self.switch_account_link.setVisible(False)
+        self.save_non_course_configs()
+
+        # 取消动作完成后立即恢复可操作状态。
+        self._weixin_flow_cancelling = False
+        self._set_weixin_checkbox_enabled(True)
+
+    def on_reactivate_account(self, _):
+        if not self.yanxx_weixin_check.isChecked():
+            self.yanxx_weixin_check.setChecked(True)
+            return
+        self._start_weixin_notify_flow(force_login=False)
+
+    def on_switch_account(self, _):
+        if not self.yanxx_weixin_check.isChecked():
+            self.yanxx_weixin_check.setChecked(True)
+            return
+        self._kill_current_weixin_flow_instance()
+        QTimer.singleShot(50, lambda: self._start_weixin_notify_flow(force_login=True))
 
     def create_apikey_tab(self):
         """创建验证码识别API密钥设置标签页"""
