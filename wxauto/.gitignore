@@ -1,0 +1,20 @@
+# 虚拟环境
+venv/
+.venv/
+
+# Python 缓存
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE
+.vscode/
+.idea/
+.DS_Store
+
+# 项目敏感信息
+*.env
+*.key
+*.log
+
+*.json
