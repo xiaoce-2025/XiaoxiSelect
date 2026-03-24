@@ -15,9 +15,11 @@ from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QFrame, QSizePolicy)
 from PyQt6.QtCore import Qt, QProcess, QProcessEnvironment
 from PyQt6.QtGui import QIcon, QFont, QColor, QLinearGradient, QBrush, QPalette, QShortcut, QKeySequence
+from config.config_manager import ConfigManager
 from ui.config_editor import ConfigEditor
 from ui.log_display import LogDisplay
 from ui.console_window import ConsoleWindow
+from utils.weixin_api import create_and_start_active_weixin_api, stop_active_weixin_api
 
 class MainWindow(QMainWindow):
     """主窗口"""
@@ -328,6 +330,18 @@ class MainWindow(QMainWindow):
         self.elective_process = None
         self._process_stdout_buffer = ""
         self.is_running = False
+
+    def _start_weixin_notification_runtime(self):
+        """按配置启动微信监听运行时。"""
+        settings = ConfigManager.get_notification_settings()
+        if not settings.get("yanxx_weixin", False):
+            stop_active_weixin_api()
+            return
+        create_and_start_active_weixin_api()
+
+    def _stop_weixin_notification_runtime(self):
+        """停止微信监听运行时。"""
+        stop_active_weixin_api()
     
     def setup_logging(self):
         """设置日志系统"""
@@ -358,9 +372,12 @@ class MainWindow(QMainWindow):
                 return
 
             self._start_elective_subprocess()
+            self._start_weixin_notification_runtime()
             self._set_running_ui(True)
 
             self.log_display.add_log("已启动独立刷课进程")
+            if ConfigManager.get_notification_settings().get("yanxx_weixin", False):
+                self.log_display.add_log("微信监听运行时已启动")
             if self.monitor_check.isChecked():
                 self.log_display.add_log("监控功能已启用")
                 
@@ -374,6 +391,7 @@ class MainWindow(QMainWindow):
                 self.elective_process.deleteLater()
                 self.elective_process = None
             self._process_stdout_buffer = ""
+            self._stop_weixin_notification_runtime()
 
     def _start_elective_subprocess(self):
         """以独立子进程启动刷课流程"""
@@ -483,6 +501,8 @@ class MainWindow(QMainWindow):
             self.log_display.add_log(f"刷课进程异常退出 (code={exit_code})")
             self._set_running_ui(False, status_text="异常退出", color="#dc3545")
 
+        self._stop_weixin_notification_runtime()
+
         if self.elective_process is not None:
             self.elective_process.deleteLater()
             self.elective_process = None
@@ -506,6 +526,7 @@ class MainWindow(QMainWindow):
                     self.elective_process.waitForFinished(2000)
 
             self._set_running_ui(False, status_text="已停止", color="#6c757d")
+            self._stop_weixin_notification_runtime()
             self.log_display.add_log("选课任务已终止")
                 
         except Exception as e:

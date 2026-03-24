@@ -10,6 +10,7 @@ from PyQt6.QtGui import QFont, QTextCursor, QColor
 from handlers.gui_log_handler import GUILogHandler
 from PyQt6.QtCore import QThread
 from config.config_manager import ConfigManager
+from utils.weixin_api import get_active_weixin_api
 # import win32com.client  # Windows语音合成
 # import pythoncom  # COM线程初始化
 import os
@@ -39,8 +40,12 @@ class NotificationWorker(QThread):
 
         # 先发微信通知
         if self.notification_config["yanxx_weixin"]:
-            # import wxauto4
-            pass
+            try:
+                api = get_active_weixin_api()
+                if api is not None:
+                    api.send(self._build_weixin_notify_text(self.message))
+            except Exception as e:
+                logging.getLogger(__name__).warning("微信提醒发送失败: %s", e)
         
 
         # 后语音提醒
@@ -133,6 +138,27 @@ class NotificationWorker(QThread):
                 return int(parts[1])  # 返回班号
         
         return None  # 如果提取失败返回None
+
+    def _build_weixin_notify_text(self, message):
+        """构造发送到微信的提醒文本。"""
+        course_name = self.extract_course_name(message)
+        class_number = self.extract_class_number(message)
+
+        if "IS AVAILABLE" in message.upper():
+            if course_name and class_number:
+                return f"[选课提醒] {course_name}（班号：{class_number}）有空余名额。"
+            if course_name:
+                return f"[选课提醒] {course_name} 有空余名额。"
+            return "[选课提醒] 检测到有课程出现空余名额。"
+
+        if "IS ELECTED" in message.upper():
+            if course_name and class_number:
+                return f"[选课提醒] 已选上 {course_name}（班号：{class_number}）。"
+            if course_name:
+                return f"[选课提醒] 已选上 {course_name}。"
+            return "[选课提醒] 检测到有课程已成功选上。"
+
+        return f"[选课提醒] {message}"
 
 
 

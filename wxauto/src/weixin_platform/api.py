@@ -369,6 +369,11 @@ def _worker_main(command_queue: mp.Queue, response_queue: mp.Queue) -> None:
                     ok(False)
                 continue
 
+            if action == "start_listener_silent":
+                started = ensure_listener_started()
+                ok(bool(started))
+                continue
+
             if action == "sendmessage":
                 if not is_listener_alive():
                     ok("请先启动监听进程")
@@ -499,6 +504,9 @@ class WeixinApiSession:
             )
         )
 
+    def start_listener_silent(self) -> bool:
+        return bool(self._request("start_listener_silent", {}, timeout_s=10))
+
     def start_listener_process(self, verification_text: str, timeout_s: int = 120) -> bool:
         return self.start_listener(verification_text=verification_text, timeout_s=timeout_s)
 
@@ -555,6 +563,10 @@ def login(step_mode: bool = False, wait_timeout_s: int | None = None) -> str | I
 
 def start_listener(verification_text: str, timeout_s: int = 120) -> bool:
     return _get_default_session().start_listener(verification_text=verification_text, timeout_s=timeout_s)
+
+
+def start_listener_silent() -> bool:
+    return _get_default_session().start_listener_silent()
 
 
 def start_listener_process(verification_text: str, timeout_s: int = 120) -> bool:
