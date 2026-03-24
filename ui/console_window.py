@@ -9,7 +9,6 @@
 from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QPushButton, QHBoxLayout, QFileDialog, QMessageBox
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QPalette
-from .about_window import YanPage
 from config.config_manager import ConfigManager
 import json
 import os
@@ -87,7 +86,7 @@ class ConsoleWindow(QMainWindow):
         row1_layout.setSpacing(20)
         row1_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
-        # 添加关于按钮
+        # # 添加关于按钮
         about_button = QPushButton("关于严小希")
         about_button.setFixedSize(120, 36)
         about_button.setStyleSheet("""
@@ -107,8 +106,8 @@ class ConsoleWindow(QMainWindow):
                 background-color: #dee2e6;
             }
         """)
-        about_button.clicked.connect(self.open_about_window)
-        row1_layout.addWidget(about_button)
+        # about_button.clicked.connect(self.open_about_window)
+        # row1_layout.addWidget(about_button)
         
         # 导出配置按钮
         export_button = QPushButton("导出配置")
@@ -116,6 +115,10 @@ class ConsoleWindow(QMainWindow):
         export_button.setStyleSheet(about_button.styleSheet())
         export_button.clicked.connect(self.export_config)
         row1_layout.addWidget(export_button)
+        # 占位符
+        placeholder = QWidget()
+        placeholder.setFixedSize(120, 36)
+        row1_layout.addWidget(placeholder)
         
         button_layout.addLayout(row1_layout)
         
@@ -132,9 +135,9 @@ class ConsoleWindow(QMainWindow):
         row2_layout.addWidget(load_button)
         
         # 添加占位符以保持居中
-        placeholder = QWidget()
-        placeholder.setFixedSize(120, 36)
-        row2_layout.addWidget(placeholder)
+        placeholder2 = QWidget()
+        placeholder2.setFixedSize(120, 36)
+        row2_layout.addWidget(placeholder2)
         
         button_layout.addLayout(row2_layout)
 
@@ -145,11 +148,11 @@ class ConsoleWindow(QMainWindow):
         # 将按钮布局添加到主布局
         main_layout.addLayout(button_layout)
 
-    def open_about_window(self):
-        """打开关于窗口"""
-        self.about_window = YanPage()
-        self.about_window.setWindowTitle("严小希的自我介绍")
-        self.about_window.showMaximized()
+    # def open_about_window(self):
+    #     """打开关于窗口"""
+    #     self.about_window = YanPage()
+    #     self.about_window.setWindowTitle("严小希的自我介绍")
+    #     self.about_window.showMaximized()
     
     def export_config(self):
         """导出配置"""

@@ -7,16 +7,17 @@
 """主窗口类"""
 
 import logging
+import os
+import re
+import sys
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QLabel, QPushButton, QCheckBox, QTabWidget, QMessageBox,
                              QFrame, QSizePolicy)
-from PyQt6.QtCore import QTimer, Qt
+from PyQt6.QtCore import Qt, QProcess, QProcessEnvironment
 from PyQt6.QtGui import QIcon, QFont, QColor, QLinearGradient, QBrush, QPalette, QShortcut, QKeySequence
-from autoelective.environ import Environ
 from ui.config_editor import ConfigEditor
 from ui.log_display import LogDisplay
 from ui.console_window import ConsoleWindow
-from utils.thread_utils import cleanup_environment, cleanup_global_queues, verify_clean_state
 
 class MainWindow(QMainWindow):
     """主窗口"""
@@ -304,11 +305,7 @@ class MainWindow(QMainWindow):
         # 初始化日志系统
         self.setup_logging()
         
-        # 设置状态检查定时器
-        self.status_timer = QTimer()
-        self.status_timer.timeout.connect(self.check_thread_status)
-        self.status_timer.start(2000)  # 每2秒检查一次
-    
+
     def setup_console_window(self):
         """设置Console窗口和快捷键"""
         # 创建Console窗口（但不立即显示）
@@ -328,8 +325,8 @@ class MainWindow(QMainWindow):
     
     def setup_auto_elective(self):
         """设置自动选课系统"""
-        self.environ = Environ()
-        self.threads = []
+        self.elective_process = None
+        self._process_stdout_buffer = ""
         self.is_running = False
     
     def setup_logging(self):
@@ -357,199 +354,163 @@ class MainWindow(QMainWindow):
         try:
             # 自动切换到日志页面
             self.tab_widget.setCurrentIndex(1)
-            if not self.is_running:
-                # 确保环境是干净的
-                if hasattr(self.environ, 'iaaa_loop_thread') and self.environ.iaaa_loop_thread is not None:
-                    self.log_display.add_log("检测到残留的线程引用，正在清理...")
-                    cleanup_environment(self.environ)
-                
-                # 强制清理全局状态
-                self.log_display.add_log("正在清理全局状态...")
-                cleanup_global_queues()
-                
-                # 等待一下确保清理完成
-                import time
-                time.sleep(0.5)
-                
-                # 验证清理是否成功
-                if not verify_clean_state(self.environ):
-                    raise Exception("全局状态清理失败，无法启动程序！")
-                
-                # 使用cli的启动逻辑
-                from autoelective.cli import create_default_parser, create_default_threads_reload, setup_default_environ
-                
-                # 创建解析器并设置默认选项
-                parser = create_default_parser()
-                options, args = parser.parse_args([])  # 空参数列表，使用默认值
-                
-                # 根据监控开关设置选项
-                options.with_monitor = self.monitor_check.isChecked()
-                
-                # 设置环境
-                setup_default_environ(options, args, self.environ)
-                
-                # 创建线程
-                self.threads = create_default_threads_reload(options, args, self.environ)
-                
-                # 启动线程
-                for thread in self.threads:
-                    thread.daemon = True
-                    thread.start()
-                
-                self.is_running = True
-                self.status_label.setText("运行中")
-                self.status_label.setStyleSheet("""
-                    QLabel {
-                        font-size: 16px;
-                        font-weight: bold;
-                        color: #28a745;
-                        background-color: #f8f9fa;
-                        border: 1px solid #dee2e6;
-                        border-radius: 15px;
-                        padding: 5px 15px;
-                    }
-                """)
-                self.status_indicator.setStyleSheet("""
-                    QLabel {
-                        background-color: #28a745;
-                        border-radius: 10px;
-                    }
-                """)
-                self.start_btn.setEnabled(False)
-                self.stop_btn.setEnabled(True)
-                
-                self.log_display.add_log("选课任务正在执行...")
-                if options.with_monitor:
-                    self.log_display.add_log("监控功能已启用")
+            if self.is_running:
+                return
+
+            self._start_elective_subprocess()
+            self._set_running_ui(True)
+
+            self.log_display.add_log("已启动独立刷课进程")
+            if self.monitor_check.isChecked():
+                self.log_display.add_log("监控功能已启用")
                 
         except Exception as e:
             QMessageBox.critical(self, "错误", f"启动失败: {str(e)}")
             self.log_display.add_log(f"启动失败: {str(e)}")
             
             # 启动失败时清理状态
-            self.is_running = False
-            self.threads = []
-            self.status_label.setText("启动失败")
-            self.status_label.setStyleSheet("""
-                QLabel {
-                    font-size: 16px;
-                    font-weight: bold;
-                    color: #dc3545;
-                    background-color: #f8f9fa;
-                    border: 1px solid #dee2e6;
-                    border-radius: 15px;
-                    padding: 5px 15px;
-                }
-            """)
-            self.status_indicator.setStyleSheet("""
-                QLabel {
-                    background-color: #dc3545;
-                    border-radius: 10px;
-                }
-            """)
+            self._set_running_ui(False, status_text="启动失败", color="#dc3545")
+            if self.elective_process is not None:
+                self.elective_process.deleteLater()
+                self.elective_process = None
+            self._process_stdout_buffer = ""
+
+    def _start_elective_subprocess(self):
+        """以独立子进程启动刷课流程"""
+        process = QProcess(self)
+        process.setProcessChannelMode(QProcess.ProcessChannelMode.MergedChannels)
+        process.readyReadStandardOutput.connect(self._on_process_output)
+        process.finished.connect(self._on_process_finished)
+        process.errorOccurred.connect(self._on_process_error)
+
+        env = QProcessEnvironment.systemEnvironment()
+        env.insert("PYTHONIOENCODING", "utf-8")
+        process.setProcessEnvironment(env)
+
+        args = ["-u", "-m", "autoelective.gui_worker"]
+        if self.monitor_check.isChecked():
+            args.append("--with-monitor")
+
+        process.setWorkingDirectory(os.getcwd())
+        process.start(sys.executable, args)
+        if not process.waitForStarted(5000):
+            raise RuntimeError("独立刷课进程未能正常启动")
+
+        self.elective_process = process
+        self._process_stdout_buffer = ""
+
+    def _set_running_ui(self, running, status_text=None, color=None):
+        """统一更新运行状态 UI"""
+        self.is_running = running
+        if running:
+            status_text = status_text or "运行中"
+            color = color or "#28a745"
+            self.start_btn.setEnabled(False)
+            self.stop_btn.setEnabled(True)
+        else:
+            status_text = status_text or "已停止"
+            color = color or "#6c757d"
             self.start_btn.setEnabled(True)
             self.stop_btn.setEnabled(False)
-            
-            # 清理环境状态
-            cleanup_environment(self.environ)
+
+        self.status_label.setText(status_text)
+        self.status_label.setStyleSheet("""
+            QLabel {
+                font-size: 16px;
+                font-weight: bold;
+                color: %s;
+                background-color: #f8f9fa;
+                border: 1px solid #dee2e6;
+                border-radius: 15px;
+                padding: 5px 15px;
+            }
+        """ % color)
+        self.status_indicator.setStyleSheet("""
+            QLabel {
+                background-color: %s;
+                border-radius: 10px;
+            }
+        """ % color)
+
+    def _emit_process_line(self, line):
+        """将子进程输出转换为日志栏格式"""
+        text = line.strip()
+        if not text:
+            return
+
+        # 兼容 autoelective 旧日志格式: [LEVEL] logger, 12:34:56, message
+        m = re.match(r"^\[(?P<level>[A-Z]+)\]\s+[^,]+,\s+(?P<ts>\d{2}:\d{2}:\d{2}),\s*(?P<msg>.*)$", text)
+        if m:
+            level = m.group("level")
+            ts = m.group("ts")
+            msg = m.group("msg")
+            self.log_display.add_log(f"[{ts}][{level}] {msg}")
+            return
+
+        # 若已经是 GUI 兼容格式，直接透传
+        if text.startswith("[") and "][" in text:
+            self.log_display.add_log(text)
+            return
+
+        self.log_display.add_log(f"[WORKER] {text}")
+
+    def _on_process_output(self):
+        """读取并处理子进程输出"""
+        if self.elective_process is None:
+            return
+
+        chunk = bytes(self.elective_process.readAllStandardOutput()).decode("utf-8", errors="replace")
+        if not chunk:
+            return
+
+        self._process_stdout_buffer += chunk
+        while "\n" in self._process_stdout_buffer:
+            line, self._process_stdout_buffer = self._process_stdout_buffer.split("\n", 1)
+            self._emit_process_line(line)
+
+    def _on_process_finished(self, exit_code, exit_status):
+        """子进程结束回调"""
+        # 处理剩余缓冲
+        if self._process_stdout_buffer:
+            self._emit_process_line(self._process_stdout_buffer)
+            self._process_stdout_buffer = ""
+
+        normal = exit_status == QProcess.ExitStatus.NormalExit and exit_code == 0
+        if normal:
+            self.log_display.add_log("刷课进程已正常退出")
+            self._set_running_ui(False, status_text="已停止", color="#6c757d")
+        else:
+            self.log_display.add_log(f"刷课进程异常退出 (code={exit_code})")
+            self._set_running_ui(False, status_text="异常退出", color="#dc3545")
+
+        if self.elective_process is not None:
+            self.elective_process.deleteLater()
+            self.elective_process = None
+
+    def _on_process_error(self, process_error):
+        """子进程错误回调"""
+        self.log_display.add_log(f"刷课进程错误: {process_error}")
     
     def stop_auto_elective(self):
         """停止自动选课"""
         try:
-            if self.is_running:
-                # 停止所有线程
-                for thread in self.threads:
-                    if thread.is_alive():
-                        # 强制终止线程（临时用）
-                        self._force_stop_thread(thread)
+            if not self.is_running:
+                return
 
-                
-                # 清空线程列表
-                self.threads = []
-                self.is_running = False
-                self.status_label.setText("已停止")
-                self.status_label.setStyleSheet("""
-                    QLabel {
-                        font-size: 16px;
-                        font-weight: bold;
-                        color: #6c757d;
-                        background-color: #f8f9fa;
-                        border: 1px solid #dee2e6;
-                        border-radius: 15px;
-                        padding: 5px 15px;
-                    }
-                """)
-                self.status_indicator.setStyleSheet("""
-                    QLabel {
-                        background-color: #6c757d;
-                        border-radius: 10px;
-                    }
-                """)
-                self.start_btn.setEnabled(True)
-                self.stop_btn.setEnabled(False)
-                
-                # 清理环境状态
-                cleanup_environment(self.environ)
-                
-                self.log_display.add_log("选课任务已终止")
+            if self.elective_process is not None and self.elective_process.state() != QProcess.ProcessState.NotRunning:
+                self.log_display.add_log("正在停止独立刷课进程...")
+                self.elective_process.terminate()
+                if not self.elective_process.waitForFinished(3000):
+                    self.log_display.add_log("子进程未及时退出，执行强制终止")
+                    self.elective_process.kill()
+                    self.elective_process.waitForFinished(2000)
+
+            self._set_running_ui(False, status_text="已停止", color="#6c757d")
+            self.log_display.add_log("选课任务已终止")
                 
         except Exception as e:
             QMessageBox.critical(self, "错误", f"停止失败: {str(e)}")
             self.log_display.add_log(f"停止失败: {str(e)}")
-
-    # 强制线程终止（临时，后续待修改autoelective本身代码后做适配）
-    def _force_stop_thread(self, thread):
-        """强制停止线程"""
-        try:
-            # 使用PyQt6的线程终止方法（如果线程是QThread）
-            if hasattr(thread, 'terminate'):
-                thread.terminate()
-                thread.wait()  # 等待线程实际结束
-                self.log_display.add_log(f"已强制终止线程: {thread.name}")
-            else:
-                # 对于非QThread，使用更强制的方法
-                import ctypes
-                
-                if not thread.is_alive():
-                    return
-                    
-                # 获取线程ID
-                thread_id = thread.ident
-                
-                # 使用ctypes调用系统API强制终止线程
-                res = ctypes.pythonapi.PyThreadState_SetAsyncExc(
-                    ctypes.c_long(thread_id),
-                    ctypes.py_object(SystemExit)
-                )
-                
-                if res == 0:
-                    self.log_display.add_log(f"无法终止线程 {thread_id}")
-                elif res != 1:
-                    # 如果返回值不是1，说明调用失败
-                    ctypes.pythonapi.PyThreadState_SetAsyncExc(thread_id, 0)
-                    self.log_display.add_log(f"终止线程 {thread_id} 失败")
-                else:
-                    self.log_display.add_log(f"已强制终止线程: {thread_id}")
-                    
-        except Exception as e:
-            self.log_display.add_log(f"终止线程时出错: {str(e)}")
-    
-    def check_thread_status(self):
-        """检查线程状态"""
-        if self.is_running and self.threads:
-            # 检查是否有线程已经结束
-            active_threads = [t for t in self.threads if t.is_alive()]
-            
-            if len(active_threads) < len(self.threads):
-                self.log_display.add_log(f"检测到 {len(self.threads) - len(active_threads)} 个线程已结束")
-                
-                # 如果所有线程都结束了，自动停止
-                if not active_threads:
-                    self.log_display.add_log("所有线程已结束，自动停止程序")
-                    self.stop_auto_elective()
-                else:
-                    # 更新线程列表
-                    self.threads = active_threads
     
     def closeEvent(self, event):
         """窗口关闭事件"""
@@ -563,13 +524,8 @@ class MainWindow(QMainWindow):
             
             if reply == QMessageBox.StandardButton.Yes:
                 self.stop_auto_elective()
-                # 等待一下确保清理完成
-                import time
-                time.sleep(0.5)
                 event.accept()
             else:
                 event.ignore()
         else:
-            # 即使没有运行，也清理一下环境
-            cleanup_environment(self.environ)
             event.accept()

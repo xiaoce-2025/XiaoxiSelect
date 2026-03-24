@@ -4,7 +4,6 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtGui import QPixmap, QFont, QFontDatabase, QCursor
 from PyQt6.QtCore import Qt, QUrl, QSize
-from PyQt6.QtWebEngineWidgets import QWebEngineView
 import webbrowser
 import os
 
