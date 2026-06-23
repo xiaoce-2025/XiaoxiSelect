@@ -11,10 +11,11 @@ import os
 import re
 import sys
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-                             QLabel, QPushButton, QCheckBox, QTabWidget, QMessageBox,
-                             QFrame, QSizePolicy)
-from PyQt6.QtCore import Qt, QProcess, QProcessEnvironment
-from PyQt6.QtGui import QIcon, QFont, QColor, QLinearGradient, QBrush, QPalette, QShortcut, QKeySequence
+                             QLabel, QPushButton, QCheckBox, QMessageBox,
+                             QFrame, QSizePolicy, QStackedWidget, QTextEdit)
+from PyQt6.QtCore import Qt, QProcess, QProcessEnvironment, QTimer
+from PyQt6.QtGui import (QIcon, QFont, QColor, QLinearGradient, QBrush, QPalette,
+                         QShortcut, QKeySequence, QTextCursor, QTextCharFormat)
 from ui.config_editor import ConfigEditor
 from ui.log_display import LogDisplay
 from ui.console_window import ConsoleWindow
@@ -233,62 +234,183 @@ class MainWindow(QMainWindow):
         status_control_layout.addLayout(status_layout)
         main_layout.addWidget(status_control_frame)
         
-        # 标签页区域
-        tab_frame = QFrame()
-        tab_frame.setStyleSheet("""
+        # 页面容器
+        page_frame = QFrame()
+        page_frame.setStyleSheet("""
             QFrame {
                 background-color: white;
                 border-radius: 10px;
             }
         """)
-        
-        tab_layout = QVBoxLayout(tab_frame)
-        tab_layout.setContentsMargins(0, 0, 0, 0)
-        
-        # 标签页
-        self.tab_widget = QTabWidget()
-        self.tab_widget.setStyleSheet("""
-            QTabWidget::pane {
-                border: 1px solid #dee2e6;
-                border-top: none;
-                border-radius: 0 0 10px 10px;
-                background: white;
-            }
-            
-            QTabBar::tab {
-                background: #f8f9fa;
-                border: 1px solid #dee2e6;
-                border-bottom: none;
-                border-top-left-radius: 8px;
-                border-top-right-radius: 8px;
-                padding: 8px 20px;
-                margin-right: 2px;
-                font-size: 14px;
-                color: #6c757d;
-            }
-            
-            QTabBar::tab:selected {
-                background: white;
-                color: #007bff;
+
+        page_layout = QVBoxLayout(page_frame)
+        page_layout.setContentsMargins(0, 0, 0, 0)
+
+        # 页面切换容器
+        self.stacked_widget = QStackedWidget()
+
+        # 配置页面
+        self.config_editor = ConfigEditor()
+        self.stacked_widget.addWidget(self.config_editor)
+
+        # 日志页面（带返回按钮）
+        log_page = QWidget()
+        log_page_layout = QVBoxLayout(log_page)
+        log_page_layout.setContentsMargins(10, 10, 10, 10)
+        log_page_layout.setSpacing(10)
+
+        back_btn_layout = QHBoxLayout()
+        self.back_btn = QPushButton("← 返回配置页面")
+        self.back_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.back_btn.setFixedWidth(150)
+        self.back_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #6c757d;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 6px;
+                font-size: 12px;
                 font-weight: bold;
-                border-bottom: 2px solid #007bff;
             }
-            
-            QTabBar::tab:hover {
-                background: #e9ecef;
+            QPushButton:hover {
+                background-color: #5a6268;
+            }
+            QPushButton:pressed {
+                background-color: #495057;
             }
         """)
-        
-        # 设置标签页
-        self.config_editor = ConfigEditor()
-        self.tab_widget.addTab(self.config_editor, QIcon(":/icons/settings_icon.png"), "设置")
-        
-        # 日志标签页
+        self.back_btn.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(0))
+        back_btn_layout.addWidget(self.back_btn)
+        back_btn_layout.addStretch()
+        log_page_layout.addLayout(back_btn_layout)
+
+        # 上半部分：控制台输出（深色主题）
+        console_label = QLabel("进程输出")
+        console_label.setStyleSheet("""
+            QLabel {
+                color: #495057;
+                font-size: 11px;
+                font-weight: bold;
+                padding: 2px 0;
+            }
+        """)
+        log_page_layout.addWidget(console_label)
+
+        self.console_output = QTextEdit()
+        self.console_output.setReadOnly(True)
+        self.console_output.setFont(QFont("Consolas", 10))
+        self.console_output.setStyleSheet("""
+            QTextEdit {
+                background-color: #ffffff;
+                color: #333333;
+                border: 1px solid #dee2e6;
+                border-radius: 6px;
+                padding: 6px;
+                selection-background-color: #b3d7ff;
+            }
+        """)
+        log_page_layout.addWidget(self.console_output, 1)
+
+        # 下半部分：运行状态仪表盘（深色主题）
+        dashboard_label = QLabel("运行状态")
+        dashboard_label.setStyleSheet("""
+            QLabel {
+                color: #495057;
+                font-size: 11px;
+                font-weight: bold;
+                padding: 2px 0;
+            }
+        """)
+        log_page_layout.addWidget(dashboard_label)
+
+        dashboard_frame = QFrame()
+        dashboard_frame.setStyleSheet("""
+            QFrame {
+                background-color: #ffffff;
+                border: 1px solid #dee2e6;
+                border-radius: 6px;
+                padding: 8px;
+            }
+        """)
+        dashboard_layout = QVBoxLayout(dashboard_frame)
+        dashboard_layout.setContentsMargins(12, 10, 12, 10)
+        dashboard_layout.setSpacing(8)
+
+        # 第一行：4 个指标卡片
+        stats_row = QHBoxLayout()
+        stats_row.setSpacing(12)
+
+        self._stat_labels = {}
+        stat_defs = [
+            ("runtime", "已运行", "00:00:00", "#0d6efd"),
+            ("loop", "当前轮次", "第 0 轮", "#664d03"),
+            ("elected", "已选课程", "0 门", "#0a8754"),
+            ("active", "刷取中", "0 门", "#b35c00"),
+            ("ignored", "已跳过", "0 门", "#6c757d"),
+        ]
+
+        for key, title, default, accent in stat_defs:
+            card = QFrame()
+            card.setStyleSheet("""
+                QFrame {
+                    background-color: #f8f9fa;
+                    border: 1px solid #dee2e6;
+                    border-radius: 4px;
+                    padding: 6px 10px;
+                }
+            """)
+            card_layout = QVBoxLayout(card)
+            card_layout.setContentsMargins(4, 4, 4, 4)
+            card_layout.setSpacing(2)
+
+            title_lbl = QLabel(title)
+            title_lbl.setStyleSheet("color: #6c757d; font-size: 11px; border: none;")
+            title_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            card_layout.addWidget(title_lbl)
+
+            value_lbl = QLabel(default)
+            value_lbl.setStyleSheet(f"color: {accent}; font-size: 18px; font-weight: bold; border: none; font-family: Consolas, monospace;")
+            value_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            card_layout.addWidget(value_lbl)
+
+            self._stat_labels[key] = value_lbl
+            stats_row.addWidget(card)
+
+        dashboard_layout.addLayout(stats_row)
+
+        # 第二行：最近事件（单行滚动）
+        self._event_label = QLabel("等待启动...")
+        self._event_label.setStyleSheet("""
+            QLabel {
+                color: #495057;
+                font-size: 12px;
+                font-family: Consolas, monospace;
+                padding: 4px 0;
+                border: none;
+            }
+        """)
+        self._event_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        dashboard_layout.addWidget(self._event_label)
+
+        log_page_layout.addWidget(dashboard_frame, 1)
+
+        # 初始化仪表盘状态
+        self._dashboard_start_time = None
+        self._dashboard_stats = {"loop": 0, "elected": 0, "active": set(), "ignored": 0}
+
+        # 运行时间定时器
+        self._runtime_timer = QTimer()
+        self._runtime_timer.timeout.connect(self._update_runtime_display)
+
+        # LogDisplay（内部日志机制依赖，不在 UI 中显示）
         self.log_display = LogDisplay()
-        self.tab_widget.addTab(self.log_display, QIcon(":/icons/log_icon.png"), "日志")
-        
-        tab_layout.addWidget(self.tab_widget)
-        main_layout.addWidget(tab_frame, 1)  # 添加拉伸因子1使标签页占据剩余空间
+        self.log_display.hide()
+
+        self.stacked_widget.addWidget(log_page)
+
+        page_layout.addWidget(self.stacked_widget)
+        main_layout.addWidget(page_frame, 1)
         
         # 页脚
         footer_label = QLabel("请不要使用刷课机刷课，否则将受到学校严厉处分！ 本项目仅供学习交流使用，请勿在公开场合传播此项目！ 对于不正当使用本项目所造成的后果，暂时不能给你明确的答复！ 不正当使用过程存在风险，USE AT YOUR OWN RISK，这个需要你自己衡量!")
@@ -356,7 +478,7 @@ class MainWindow(QMainWindow):
         """启动自动选课"""
         try:
             # 自动切换到日志页面
-            self.tab_widget.setCurrentIndex(1)
+            self.stacked_widget.setCurrentIndex(1)
             if self.is_running:
                 return
 
@@ -364,7 +486,7 @@ class MainWindow(QMainWindow):
             passed, reason = self.config_editor.check_iaaa_public_key()
             if not passed:
                 QMessageBox.warning(self, "提示", reason)
-                self.tab_widget.setCurrentIndex(0)  # 切换到设置页
+                self.stacked_widget.setCurrentIndex(0)  # 切换到设置页
                 return
 
             self._start_elective_subprocess()
@@ -387,6 +509,9 @@ class MainWindow(QMainWindow):
 
     def _start_elective_subprocess(self):
         """以独立子进程启动刷课流程"""
+        # 重置仪表盘
+        self._reset_dashboard()
+
         # 启动日志服务器，获取端口
         log_port = self._log_server.start()
         # 连接结构化日志信号
@@ -447,11 +572,152 @@ class MainWindow(QMainWindow):
             }
         """ % color)
 
+    def _write_to_console(self, text, color=None):
+        """写入控制台输出区域"""
+        cursor = self.console_output.textCursor()
+        cursor.movePosition(QTextCursor.MoveOperation.End)
+        fmt = QTextCharFormat()
+        fmt.setForeground(QColor(color or "#333333"))
+        cursor.insertText(text + '\n', fmt)
+        self.console_output.setTextCursor(cursor)
+        self.console_output.ensureCursorVisible()
+        # 限制行数
+        if self.console_output.document().blockCount() > 500:
+            c = self.console_output.textCursor()
+            c.setPosition(0)
+            c.select(QTextCursor.SelectionType.BlockUnderCursor)
+            c.removeSelectedText()
+
+    # ---- 仪表盘 ----
+
+    def _reset_dashboard(self):
+        """重置仪表盘数据"""
+        from datetime import datetime
+        self._dashboard_start_time = datetime.now()
+        self._dashboard_stats = {"loop": 0, "elected": 0, "active": set(), "ignored": 0}
+        for lbl in self._stat_labels.values():
+            lbl.setText("—")
+        self._stat_labels["runtime"].setText("00:00:00")
+        self._stat_labels["loop"].setText("第 0 轮")
+        self._stat_labels["elected"].setText("0 门")
+        self._stat_labels["active"].setText("0 门")
+        self._stat_labels["ignored"].setText("0 门")
+        self._event_label.setText("正在启动...")
+        self._runtime_timer.start(1000)
+
+    def _update_runtime_display(self):
+        """定时更新运行时间"""
+        if self._dashboard_start_time:
+            from datetime import datetime
+            delta = datetime.now() - self._dashboard_start_time
+            total = int(delta.total_seconds())
+            h, m, s = total // 3600, (total % 3600) // 60, total % 60
+            self._stat_labels["runtime"].setText(f"{h:02d}:{m:02d}:{s:02d}")
+
+    def _update_dashboard(self, text):
+        """解析日志行，更新仪表盘指标"""
+        # 轮次
+        m = re.search(r"======== Loop (\d+) ========", text)
+        if m:
+            self._dashboard_stats["loop"] = int(m.group(1))
+            self._stat_labels["loop"].setText(f"第 {m.group(1)} 轮")
+            self._event_label.setText(f"正在进行第 {m.group(1)} 轮刷取...")
+            return
+
+        # 尝试选课（加入活跃集合）
+        m = re.search(r"Try to elect (.+)", text)
+        if m:
+            course = m.group(1).strip()
+            self._dashboard_stats["active"].add(course)
+            self._stat_labels["active"].setText(f"{len(self._dashboard_stats['active'])} 门")
+            self._event_label.setText(f"正在尝试选课: {course}")
+            return
+
+        # 选课成功
+        if "is ELECTED" in text and "ignored" not in text:
+            self._dashboard_stats["elected"] += 1
+            self._stat_labels["elected"].setText(f"{self._dashboard_stats['elected']} 门")
+            # 从活跃集合移除
+            m = re.search(r"(.+?) is ELECTED", text)
+            if m:
+                self._dashboard_stats["active"].discard(m.group(1).strip())
+                self._stat_labels["active"].setText(f"{len(self._dashboard_stats['active'])} 门")
+            self._event_label.setText(f"✅ 选课成功: {text.split('is ELECTED')[0].strip()}")
+            return
+
+        # 已选上被忽略
+        if "is elected, ignored" in text:
+            self._dashboard_stats["ignored"] += 1
+            self._stat_labels["ignored"].setText(f"{self._dashboard_stats['ignored']} 门")
+            m = re.search(r"(.+?) is elected, ignored", text)
+            if m:
+                self._dashboard_stats["active"].discard(m.group(1).strip())
+                self._stat_labels["active"].setText(f"{len(self._dashboard_stats['active'])} 门")
+            return
+
+        # 互斥忽略
+        if "ignored by mutex rules" in text:
+            self._dashboard_stats["ignored"] += 1
+            self._stat_labels["ignored"].setText(f"{self._dashboard_stats['ignored']} 门")
+            return
+
+        # 各种错误 → 从活跃移除，计入忽略
+        for err in ["QuotaLimitedError", "TimeConflictError", "ExamTimeConflictError",
+                     "ElectionRepeatedError", "ElectionPermissionError",
+                     "CreditsLimitedError", "MutexCourseError"]:
+            if err in text:
+                self._dashboard_stats["ignored"] += 1
+                self._stat_labels["ignored"].setText(f"{self._dashboard_stats['ignored']} 门")
+                self._event_label.setText(f"⚠ {err}")
+                # 尝试从活跃集合移除上一个课程
+                return
+
+        # 验证码
+        if "Validation failed" in text:
+            self._event_label.setText("⚠ 验证码识别失败，重试中...")
+            return
+        if "Validation passed" in text:
+            self._event_label.setText("验证码校验通过")
+            return
+
+        # 无任务
+        if "No tasks" in text:
+            self._event_label.setText("所有课程已处理完毕")
+            return
+
+        # 会话过期
+        if "needs relogin" in text or "expired" in text:
+            self._event_label.setText("⚠ 会话过期，正在重新登录...")
+            return
+
+        # 登录成功
+        if "IAAA login success" in text:
+            self._event_label.setText("IAAA 登录成功")
+            return
+        if "SSO login success" in text:
+            self._event_label.setText("SSO 登录成功")
+            return
+
     def _emit_process_line(self, line):
         """将子进程 stdout 输出转换为日志栏格式（Socket 日志的回退通道）"""
         text = line.strip()
         if not text:
             return
+
+        # 更新仪表盘
+        self._update_dashboard(text)
+
+        # 写入控制台（根据级别着色）
+        console_color = "#333333"
+        if "[ERROR]" in text.upper() or "CRITICAL" in text.upper():
+            console_color = "#dc3545"
+        elif "[WARNING]" in text.upper():
+            console_color = "#b8860b"
+        elif "[INFO]" in text.upper():
+            console_color = "#333333"
+        elif "[DEBUG]" in text.upper():
+            console_color = "#808080"
+        self._write_to_console(text, console_color)
 
         # 兼容 autoelective 旧日志格式: [LEVEL] logger, 12:34:56, message
         m = re.match(r"^\[(?P<level>[A-Z]+)\]\s+[^,]+,\s+(?P<ts>\d{2}:\d{2}:\d{2}),\s*(?P<msg>.*)$", text)
@@ -474,6 +740,7 @@ class MainWindow(QMainWindow):
         level = record.get("level", "INFO")
         ts = record.get("timestamp", "??:??:??")
         msg = record.get("message", "")
+        self._update_dashboard(msg)
         self.log_display.add_log(f"[{ts}][{level}] {msg}")
 
     def _on_process_output(self):
@@ -492,6 +759,9 @@ class MainWindow(QMainWindow):
 
     def _on_process_finished(self, exit_code, exit_status):
         """子进程结束回调"""
+        # 停止运行时间计时器
+        self._runtime_timer.stop()
+
         # 停止日志服务器
         self._log_server.stop()
         try:
