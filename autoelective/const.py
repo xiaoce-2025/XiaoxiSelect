@@ -45,6 +45,7 @@ class IAAAURL(object):
     Host = "iaaa.pku.edu.cn"
     OauthHomePage = "https://iaaa.pku.edu.cn/iaaa/oauth.jsp"
     OauthLogin = "https://iaaa.pku.edu.cn/iaaa/oauthlogin.do"
+    GetPublicKey = "https://iaaa.pku.edu.cn/iaaa/getPublicKey.do"
 
 
 class ElectiveURL(object):

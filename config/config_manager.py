@@ -39,7 +39,8 @@ class ConfigManager:
                         'student_id': config.get('user', 'student_id', fallback=''),
                         'password': config.get('user', 'password', fallback=''),
                         'dual_degree': config.getboolean('user', 'dual_degree', fallback=False),
-                        'identity': config.get('user', 'identity', fallback='bzx')
+                        'identity': config.get('user', 'identity', fallback='bzx'),
+                        'iaaa_public_key': config.get('user', 'iaaa_public_key', fallback='')
                     }
                 
                 # 加载客户端设置

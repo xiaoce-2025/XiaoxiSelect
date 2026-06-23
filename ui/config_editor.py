@@ -2,17 +2,23 @@
 配置文件编辑器界面
 """
 import os
+import base64
+import json
+import rsa as rsa_lib
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout,
                              QPushButton, QLabel,
                              QCheckBox, QComboBox,
                              QFormLayout, QMessageBox, QScrollArea, QFrame, QRadioButton,
                              QStackedWidget, QDialog, QTableWidget, QTableWidgetItem,
-                             QVBoxLayout, QDialogButtonBox, QListWidgetItem, QButtonGroup)
+                             QVBoxLayout, QDialogButtonBox, QListWidgetItem, QButtonGroup,
+                             QLineEdit)
 from PyQt6.QtCore import Qt, QTimer
 from config.config_manager import ConfigManager
 import re
 import pyperclip  # 用于访问剪贴板
 from datetime import datetime
+from autoelective.const import IAAAURL
+from autoelective.iaaa import IAAAClient
 
 # 自定义的各种组件
 from ui.components.MQGroupBox import MQGroupBox
@@ -31,6 +37,10 @@ class ConfigEditor(QWidget):
         self.courses_data = {}
         self.mutex_data = {}
         self.delay_data = {}
+
+        # IAAA RSA 加密相关
+        self._encrypted_password = ''   # RSA 加密后的密码（base64）
+        self._iaaa_public_key_raw = ''  # 存储的公钥原始 JSON 字符串
 
         # 自动保存相关变量
         self.last_save_time = None
@@ -482,7 +492,28 @@ class ConfigEditor(QWidget):
             if 'user' in config_data:
                 user_data = config_data['user']
                 self.student_id_edit.setText(user_data.get('student_id', ''))
-                self.password_edit.setText(user_data.get('password', ''))
+                # 加载 RSA 加密密码和公钥
+                self._encrypted_password = user_data.get('password', '')
+                self._iaaa_public_key_raw = user_data.get('iaaa_public_key', '')
+                if self._encrypted_password:
+                    self.password_status_label.setText("已设置")
+                    self.password_status_label.setStyleSheet("""
+                        QLabel {
+                            color: #28a745;
+                            font-size: 10pt;
+                            padding: 4px 8px;
+                            font-weight: bold;
+                        }
+                    """)
+                else:
+                    self.password_status_label.setText("未设置")
+                    self.password_status_label.setStyleSheet("""
+                        QLabel {
+                            color: #6c757d;
+                            font-size: 10pt;
+                            padding: 4px 8px;
+                        }
+                    """)
                 # 加载用户配置时直接向身份选择组加载，随后身份选择组会设置这两个东西
                 # 身份选择组1不是双学位账号，2bzx，3bfx
                 is_dual_degree_temp = user_data.get('dual_degree', False)
@@ -578,8 +609,6 @@ class ConfigEditor(QWidget):
         """设置自动保存的信号连接"""
         # 用户设置
         self.student_id_edit.editingFinished.connect(
-            self.save_non_course_configs)
-        self.password_edit.editingFinished.connect(
             self.save_non_course_configs)
         self.dual_degree_check.stateChanged.connect(
             self.save_non_course_configs)
@@ -712,9 +741,10 @@ class ConfigEditor(QWidget):
         """获取用户配置数据"""
         return {
             'student_id': self.student_id_edit.text(),
-            'password': self.password_edit.text(),
+            'password': self._encrypted_password,
             'dual_degree': self.dual_degree_check.isChecked(),
-            'identity': self.identity_combo.currentText()
+            'identity': self.identity_combo.currentText(),
+            'iaaa_public_key': self._iaaa_public_key_raw
         }
 
     def get_client_config(self):
@@ -943,8 +973,14 @@ class ConfigEditor(QWidget):
         group_layout.setSpacing(10)
 
         self.student_id_edit = MQLineEdit()
-        self.password_edit = MQLineEdit()
-        self.password_edit.setEchoMode(MQLineEdit.EchoMode.Password)
+        self.student_id_edit.setReadOnly(True)
+        self.student_id_edit.setStyleSheet("""
+            MQLineEdit {
+                background-color: #e9ecef;
+                color: #495057;
+                border: 1px solid #ced4da;
+            }
+        """)
         self.dual_degree_check = QCheckBox()
         self.identity_combo = QComboBox()
         self.identity_combo.addItems(["bzx", "bfx"])
@@ -952,9 +988,35 @@ class ConfigEditor(QWidget):
         self.identity_combo.hide()
         self.identity_combo.hide()
 
-        group_layout.addWidget(self.create_3_inputs_a_line((self.create_label_with_tooltip(
-            "IAAA账号:", "请输入您的IAAA认证账号，如: 2500011111"), self.student_id_edit), (self.create_label_with_tooltip(
-                "IAAA密码:", "请输入您的IAAA认证密码"), self.password_edit)))
+        # 修改密码按钮
+        self.change_password_btn = QPushButton("修改账户密码")
+        self.change_password_btn.clicked.connect(self._show_change_password_dialog)
+
+        # 密码状态标签
+        self.password_status_label = QLabel("未设置")
+        self.password_status_label.setStyleSheet("""
+            QLabel {
+                color: #6c757d;
+                font-size: 10pt;
+                padding: 4px 8px;
+            }
+        """)
+
+        # 密码区域：状态标签 + 修改按钮 组合为一个控件
+        password_widget = QWidget()
+        password_layout = QHBoxLayout()
+        password_layout.setContentsMargins(0, 0, 0, 0)
+        password_layout.setSpacing(4)
+        password_layout.addWidget(self.password_status_label, 1)
+        password_layout.addWidget(self.change_password_btn)
+        password_widget.setLayout(password_layout)
+
+        group_layout.addWidget(self.create_3_inputs_a_line(
+            (self.create_label_with_tooltip(
+                "IAAA账号:", "您的IAAA认证账号"), self.student_id_edit),
+            (self.create_label_with_tooltip(
+                "IAAA密码:", "点击修改按钮设置密码（RSA加密存储）"), password_widget)
+        ))
 
         group.setLayout(group_layout)
         layout.addWidget(group)
@@ -965,6 +1027,266 @@ class ConfigEditor(QWidget):
     def toggle_identity_visibility(self, state):
         """已弃用函数，双学位身份现在通过单选框来选择"""
         pass
+
+    # ---- IAAA RSA 加密相关方法 ----
+
+    @staticmethod
+    def _parse_iaaa_key(pem_str):
+        """解析 IAAA 返回的 SPKI PEM 公钥
+
+        IAAA 返回格式: "-----BEGIN PUBLIC KEY-----\\nMIIBIj...\\n-----END PUBLIC KEY-----"
+        这是 SubjectPublicKeyInfo (SPKI) 格式，rsa 库的 load_pkcs1 不支持，
+        需要手动从 ASN.1 结构中提取 modulus (n) 和 exponent (e)。
+        """
+        def read_len(data, pos):
+            """读取 ASN.1 长度字段，返回 (length, new_pos)"""
+            b = data[pos]
+            pos += 1
+            if b & 0x80:
+                n_bytes = b & 0x7F
+                length = int.from_bytes(data[pos:pos + n_bytes], 'big')
+                pos += n_bytes
+            else:
+                length = b
+            return length, pos
+
+        try:
+            # 去掉 PEM 头尾，提取 base64 内容
+            lines = pem_str.strip().split('\n')
+            b64_content = ''.join(
+                line for line in lines
+                if not line.startswith('-----')
+            )
+            der = base64.b64decode(b64_content)
+            pos = 0
+
+            # outer SEQUENCE
+            if der[pos] != 0x30:
+                return None
+            pos += 1
+            _, pos = read_len(der, pos)
+
+            # AlgorithmIdentifier SEQUENCE — 整体跳过
+            if der[pos] != 0x30:
+                return None
+            pos += 1
+            alg_len, pos = read_len(der, pos)
+            pos += alg_len
+
+            # BIT STRING
+            if der[pos] != 0x03:
+                return None
+            pos += 1
+            _, pos = read_len(der, pos)
+            pos += 1  # unused_bits byte
+
+            # inner SEQUENCE (n, e)
+            if der[pos] != 0x30:
+                return None
+            pos += 1
+            _, pos = read_len(der, pos)
+
+            # modulus INTEGER
+            if der[pos] != 0x02:
+                return None
+            pos += 1
+            n_len, pos = read_len(der, pos)
+            n = int.from_bytes(der[pos:pos + n_len], 'big')
+            pos += n_len
+
+            # exponent INTEGER
+            if der[pos] != 0x02:
+                return None
+            pos += 1
+            e_len, pos = read_len(der, pos)
+            e = int.from_bytes(der[pos:pos + e_len], 'big')
+
+            return rsa_lib.PublicKey(n, e)
+        except Exception:
+            return None
+
+    @staticmethod
+    def _fetch_iaaa_public_key():
+        """从 IAAA 服务器拉取 RSA 公钥（使用与选课相同的 IAAAClient 请求方式）
+
+        Returns:
+            tuple: (rsa.PublicKey, key_raw_json_str) 或 (None, None) 失败时
+        """
+        try:
+            client = IAAAClient()
+            resp = client._get(
+                url=IAAAURL.GetPublicKey,
+                headers={
+                    "Referer": IAAAURL.OauthHomePage,
+                    "Accept": "application/json, text/javascript, */*; q=0.01",
+                    "X-Requested-With": "XMLHttpRequest",
+                },
+            )
+            data = resp.json()
+            if not data.get("success"):
+                return None, None
+            key_b64 = data["key"]
+            pub_key = ConfigEditor._parse_iaaa_key(key_b64)
+            if pub_key is None:
+                return None, None
+            key_raw = json.dumps({"key": key_b64})
+            return pub_key, key_raw
+        except Exception:
+            return None, None
+
+    @staticmethod
+    def _rsa_encrypt_password(pub_key, password):
+        """使用 RSA 公钥加密密码
+
+        Args:
+            pub_key: rsa.PublicKey 对象
+            password: 明文密码字符串
+
+        Returns:
+            str: base64 编码的加密密码，失败返回空字符串
+        """
+        try:
+            encrypted = rsa_lib.encrypt(password.encode('utf-8'), pub_key)
+            return base64.b64encode(encrypted).decode('utf-8')
+        except Exception:
+            return ''
+
+    def get_stored_public_key(self):
+        """获取本地存储的 IAAA 公钥字符串（供 main_window 校验用）"""
+        return self._iaaa_public_key_raw
+
+    def check_iaaa_public_key(self):
+        """检查远程 IAAA 公钥是否与本地存储一致
+
+        Returns:
+            tuple: (passed: bool, reason: str)
+                passed=True  — 校验通过
+                passed=False — reason 为提示信息
+        """
+        if not self._iaaa_public_key_raw:
+            return False, "请先设置IAAA账密！"
+        _, remote_key_raw = self._fetch_iaaa_public_key()
+        if remote_key_raw is None:
+            # 网络请求失败，允许继续（使用旧密码尝试）
+            return True, ""
+        if remote_key_raw != self._iaaa_public_key_raw:
+            return False, "IAAA公钥已更新，请重新输入密码后再启动选课。"
+        return True, ""
+
+    def _show_change_password_dialog(self):
+        """弹出修改账户密码对话框"""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("修改账户密码")
+        dialog.setFixedSize(400, 280)
+        dialog.setStyleSheet("""
+            QDialog {
+                background-color: #f8f9fa;
+                font-family: 'Segoe UI', Arial, sans-serif;
+                font-size: 10pt;
+            }
+            QLabel {
+                font-size: 10pt;
+            }
+            QLineEdit {
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+                padding: 8px;
+                font-size: 10pt;
+                background: #ffffff;
+            }
+            QLineEdit:focus {
+                border-color: #007bff;
+            }
+            QPushButton {
+                background-color: #007bff;
+                color: white;
+                border: none;
+                padding: 8px 20px;
+                border-radius: 4px;
+                font-size: 10pt;
+            }
+            QPushButton:hover {
+                background-color: #0056b3;
+            }
+        """)
+
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(12)
+
+        # 账号输入
+        id_label = QLabel("IAAA账号：")
+        layout.addWidget(id_label)
+        id_input = QLineEdit()
+        id_input.setPlaceholderText("请输入IAAA认证账号，如: 2500011111")
+        id_input.setText(self.student_id_edit.text())
+        layout.addWidget(id_input)
+
+        # 密码输入
+        pwd_label = QLabel("IAAA密码：")
+        layout.addWidget(pwd_label)
+        password_input = QLineEdit()
+        password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        password_input.setPlaceholderText("请输入IAAA认证密码")
+        layout.addWidget(password_input)
+
+        # 按钮
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+        cancel_btn = QPushButton("取消")
+        cancel_btn.setStyleSheet("""
+            QPushButton { background-color: #6c757d; }
+            QPushButton:hover { background-color: #5a6268; }
+        """)
+        cancel_btn.clicked.connect(dialog.reject)
+        confirm_btn = QPushButton("确认")
+        confirm_btn.clicked.connect(dialog.accept)
+        btn_layout.addWidget(cancel_btn)
+        btn_layout.addWidget(confirm_btn)
+        layout.addLayout(btn_layout)
+
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        student_id = id_input.text().strip()
+        password = password_input.text().strip()
+        if not student_id:
+            QMessageBox.warning(self, "警告", "账号不能为空！")
+            return
+        if not password:
+            QMessageBox.warning(self, "警告", "密码不能为空！")
+            return
+
+        # 拉取公钥
+        pub_key, key_raw = self._fetch_iaaa_public_key()
+        if pub_key is None:
+            QMessageBox.critical(self, "错误",
+                                 "无法获取IAAA公钥，请检查网络连接后重试。")
+            return
+
+        # RSA 加密
+        encrypted = self._rsa_encrypt_password(pub_key, password)
+        if not encrypted:
+            QMessageBox.critical(self, "错误", "密码加密失败，请重试。")
+            return
+
+        # 存储
+        self.student_id_edit.setText(student_id)
+        self._encrypted_password = encrypted
+        self._iaaa_public_key_raw = key_raw
+        self.password_status_label.setText("已设置")
+        self.password_status_label.setStyleSheet("""
+            QLabel {
+                color: #28a745;
+                font-size: 10pt;
+                padding: 4px 8px;
+                font-weight: bold;
+            }
+        """)
+
+        # 自动保存
+        self.save_non_course_configs()
+        QMessageBox.information(self, "成功", "账户密码已使用RSA加密保存！")
 
     def create_client_tab(self):
         """创建客户端设置标签页"""

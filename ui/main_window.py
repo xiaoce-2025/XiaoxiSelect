@@ -360,6 +360,13 @@ class MainWindow(QMainWindow):
             if self.is_running:
                 return
 
+            # 检查 IAAA 公钥是否变更
+            passed, reason = self.config_editor.check_iaaa_public_key()
+            if not passed:
+                QMessageBox.warning(self, "提示", reason)
+                self.tab_widget.setCurrentIndex(0)  # 切换到设置页
+                return
+
             self._start_elective_subprocess()
             self._set_running_ui(True)
 
