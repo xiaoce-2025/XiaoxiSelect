@@ -18,6 +18,7 @@ from PyQt6.QtGui import QIcon, QFont, QColor, QLinearGradient, QBrush, QPalette,
 from ui.config_editor import ConfigEditor
 from ui.log_display import LogDisplay
 from ui.console_window import ConsoleWindow
+from handlers.log_server import LogServer
 
 class MainWindow(QMainWindow):
     """主窗口"""
@@ -328,6 +329,8 @@ class MainWindow(QMainWindow):
         self.elective_process = None
         self._process_stdout_buffer = ""
         self.is_running = False
+        # 日志服务器（子进程 → GUI 的结构化日志通道）
+        self._log_server = LogServer()
     
     def setup_logging(self):
         """设置日志系统"""
@@ -377,6 +380,11 @@ class MainWindow(QMainWindow):
 
     def _start_elective_subprocess(self):
         """以独立子进程启动刷课流程"""
+        # 启动日志服务器，获取端口
+        log_port = self._log_server.start()
+        # 连接结构化日志信号
+        self._log_server.log_received.connect(self._on_structured_log)
+
         process = QProcess(self)
         process.setProcessChannelMode(QProcess.ProcessChannelMode.MergedChannels)
         process.readyReadStandardOutput.connect(self._on_process_output)
@@ -387,7 +395,7 @@ class MainWindow(QMainWindow):
         env.insert("PYTHONIOENCODING", "utf-8")
         process.setProcessEnvironment(env)
 
-        args = ["-u", "-m", "autoelective.gui_worker"]
+        args = ["-u", "-m", "autoelective.gui_worker", "--log-port", str(log_port)]
         if self.monitor_check.isChecked():
             args.append("--with-monitor")
 
@@ -433,7 +441,7 @@ class MainWindow(QMainWindow):
         """ % color)
 
     def _emit_process_line(self, line):
-        """将子进程输出转换为日志栏格式"""
+        """将子进程 stdout 输出转换为日志栏格式（Socket 日志的回退通道）"""
         text = line.strip()
         if not text:
             return
@@ -454,6 +462,13 @@ class MainWindow(QMainWindow):
 
         self.log_display.add_log(f"[WORKER] {text}")
 
+    def _on_structured_log(self, record: dict):
+        """接收 Socket 日志服务器发来的结构化日志"""
+        level = record.get("level", "INFO")
+        ts = record.get("timestamp", "??:??:??")
+        msg = record.get("message", "")
+        self.log_display.add_log(f"[{ts}][{level}] {msg}")
+
     def _on_process_output(self):
         """读取并处理子进程输出"""
         if self.elective_process is None:
@@ -470,7 +485,14 @@ class MainWindow(QMainWindow):
 
     def _on_process_finished(self, exit_code, exit_status):
         """子进程结束回调"""
-        # 处理剩余缓冲
+        # 停止日志服务器
+        self._log_server.stop()
+        try:
+            self._log_server.log_received.disconnect(self._on_structured_log)
+        except TypeError:
+            pass
+
+        # 处理剩余 stdout 缓冲
         if self._process_stdout_buffer:
             self._emit_process_line(self._process_stdout_buffer)
             self._process_stdout_buffer = ""
@@ -505,9 +527,12 @@ class MainWindow(QMainWindow):
                     self.elective_process.kill()
                     self.elective_process.waitForFinished(2000)
 
+            # 停止日志服务器
+            self._log_server.stop()
+
             self._set_running_ui(False, status_text="已停止", color="#6c757d")
             self.log_display.add_log("选课任务已终止")
-                
+
         except Exception as e:
             QMessageBox.critical(self, "错误", f"停止失败: {str(e)}")
             self.log_display.add_log(f"停止失败: {str(e)}")

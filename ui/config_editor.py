@@ -531,8 +531,6 @@ class ConfigEditor(QWidget):
             # 加载通知设置
             if 'notification' in config_data:
                 notification_data = config_data['notification']
-                self.yanxx_voice_check.setChecked(
-                    notification_data.get('yanxx_voice', False))
                 self.yanxx_weixin_check.setChecked(
                     notification_data.get('yanxx_weixin', False))
                 self.yanxx_weixin_user_edit.setText(
@@ -623,8 +621,6 @@ class ConfigEditor(QWidget):
             self.save_non_course_configs)
 
         # 通知设置
-        self.yanxx_voice_check.stateChanged.connect(
-            self.save_non_course_configs)
         self.yanxx_weixin_check.stateChanged.connect(
             self.save_non_course_configs)
         self.yanxx_weixin_user_edit.editingFinished.connect(
@@ -744,7 +740,6 @@ class ConfigEditor(QWidget):
 
     def get_notification_config(self):
         return {
-            'yanxx_voice': self.yanxx_voice_check.isChecked(),
             'yanxx_weixin': self.yanxx_weixin_check.isChecked(),
             'yanxx_weixin_user': self.yanxx_weixin_user_edit.text(),
         }
@@ -1057,7 +1052,6 @@ class ConfigEditor(QWidget):
         group_layout.setContentsMargins(10, 10, 10, 10)
         group_layout.setSpacing(10)
 
-        self.yanxx_voice_check = QCheckBox()
         self.yanxx_weixin_check = QCheckBox()
         self.yanxx_weixin_user_edit = MQLineEdit()
 
@@ -1088,11 +1082,6 @@ class ConfigEditor(QWidget):
         yanxx_weixin_user_layout.addRow(test_button)
         self.yanxx_weixin_user_container.setLayout(yanxx_weixin_user_layout)
         self.yanxx_weixin_user_container.setVisible(False)  # 初始隐藏
-        # 添加语音提醒开关（初始隐藏）
-        voice_widget = self.create_3_inputs_a_line((self.create_label_with_tooltip(
-            "语音提醒：", "是否开启语音提醒"), self.yanxx_voice_check))
-        voice_widget.hide()
-        group_layout.addWidget(voice_widget)
         # 添加微信提醒名单和测试容器
         group_layout.addWidget(self.yanxx_weixin_user_container)
         # 连接微信监听状态复选框状态改变信号

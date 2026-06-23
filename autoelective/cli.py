@@ -47,24 +47,32 @@ def setup_default_environ(options, args, environ):
     environ.with_monitor = options.with_monitor
 
 
-def create_default_threads_reload(options, args, environ):
-    # 重新加载主配置
+def _reload_configs(environ):
+    """重新加载主配置和TT识图API配置"""
     from .config import AutoElectiveConfig
     config = AutoElectiveConfig()
     config.reload()
-    # 重新加载TT识图API配置
+
     from .captcha.online import APIConfig
-    # 获取或创建全局APIConfig实例
     if not hasattr(environ, 'api_config'):
         environ.api_config = APIConfig()
-    # 调用重载方法
     environ.api_config.reload()
 
-    # 刷新配置
     from autoelective.loop import refreshsettings
     refreshsettings()
 
-    # import here to ensure the singleton `config` will be init later than parse_args()
+
+def _build_threads(options, environ, reload_configs=False):
+    """构建刷课线程组。
+
+    Args:
+        options: 命令行选项
+        environ: 全局环境对象
+        reload_configs: 是否在启动前重新加载配置（GUI子进程模式使用True）
+    """
+    if reload_configs:
+        _reload_configs(environ)
+
     from autoelective.loop import run_iaaa_loop, run_elective_loop
     from autoelective.monitor import run_monitor
 
@@ -84,29 +92,16 @@ def create_default_threads_reload(options, args, environ):
         tList.append(t)
 
     return tList
+
+
+def create_default_threads_reload(options, args, environ):
+    """GUI子进程模式：重新加载配置后创建线程"""
+    return _build_threads(options, environ, reload_configs=True)
 
 
 def create_default_threads(options, args, environ):
-    # import here to ensure the singleton `config` will be init later than parse_args()
-    from autoelective.loop import run_iaaa_loop, run_elective_loop
-    from autoelective.monitor import run_monitor
-
-    tList = []
-
-    t = Thread(target=run_iaaa_loop, name="IAAA")
-    environ.iaaa_loop_thread = t
-    tList.append(t)
-
-    t = Thread(target=run_elective_loop, name="Elective")
-    environ.elective_loop_thread = t
-    tList.append(t)
-
-    if options.with_monitor:
-        t = Thread(target=run_monitor, name="Monitor")
-        environ.monitor_thread = t
-        tList.append(t)
-
-    return tList
+    """CLI模式：直接创建线程"""
+    return _build_threads(options, environ, reload_configs=False)
 
 
 def run():

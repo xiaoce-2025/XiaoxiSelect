@@ -66,19 +66,8 @@ class ConfigManager:
                     }
                 
                 # 加载通知设置
-                '''
-                通知设置(前四个为原有设置，弃用)
-                yanxx_voice:严小希语音提醒
-                yanxx_weixin:严小希微信提醒/控制
-                yanxx_weixin_user:严小希微信监听账号
-                '''
                 if 'notification' in config:
                     config_data['notification'] = {
-                        # 'disable_push': config.getboolean('notification', 'disable_push', fallback=False),
-                        # 'token': config.get('notification', 'token', fallback=''),
-                        # 'verbosity': config.getint('notification', 'verbosity', fallback=1),
-                        # 'minimum_interval': config.getfloat('notification', 'minimum_interval', fallback=1.0),
-                        'yanxx_voice': config.getboolean('notification', 'yanxx_voice', fallback=False),
                         'yanxx_weixin': config.getboolean('notification', 'yanxx_weixin', fallback=False),
                         'yanxx_weixin_user': config.get('notification', 'yanxx_weixin_user', fallback=''),
                     }
@@ -199,7 +188,6 @@ class ConfigManager:
 
                 if 'notification' in config:
                     return {
-                        'yanxx_voice': config.getboolean('notification', 'yanxx_voice', fallback=False),
                         'yanxx_weixin': config.getboolean('notification', 'yanxx_weixin', fallback=False),
                         'yanxx_weixin_user': config.get('notification', 'yanxx_weixin_user', fallback=''),
                     }

@@ -219,6 +219,7 @@ class TTShituRecognizer(object):
         else:
             raise RecognizerError(msg="Recognizer ERROR: %s" % result["message"])
 
+    @staticmethod
     def _to_b64(raw):
         im = Image.open(BytesIO(raw))
         try:
@@ -234,6 +235,7 @@ class TTShituRecognizer(object):
         b64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
         return b64
 
+    @staticmethod
     def _to_b64_inverted(raw):
         """对图片进行颜色反转后转换为base64"""
         im = Image.open(BytesIO(raw))

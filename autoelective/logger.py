@@ -9,16 +9,10 @@ from logging.handlers import TimedRotatingFileHandler
 from .config import AutoElectiveConfig
 from .const import ERROR_LOG_DIR
 from ._internal import mkdir
-from .notification.bark_push import Notify
-from .const import WECHAT_MSG, WECHAT_PREFIX
+from .notification.manager import send_notify
+from .const import WECHAT_PREFIX
 
 config = AutoElectiveConfig()
-notify = Notify(
-    _disable_push=config.disable_push,
-    _token=config.wechat_token,
-    _interval_lock=config.minimum_interval,
-    _verbosity=config.verbosity,
-)
 
 _USER_ERROR_LOG_DIR = os.path.join(ERROR_LOG_DIR, config.get_user_subpath())
 mkdir(_USER_ERROR_LOG_DIR)
@@ -63,10 +57,7 @@ class BaseLogger(object):
         return self._logger.warning(msg, *args, **kwargs)
 
     def error(self, msg, *args, **kwargs):
-        if notify.get_verbosity == 2:
-            notify.send_bark_push(
-                token=notify.get_token, msg=str(msg), prefix=WECHAT_PREFIX[0]
-            )
+        send_notify(msg=str(msg), prefix=WECHAT_PREFIX[0], level=1)
         return self._logger.error(msg, *args, **kwargs)
 
     def exception(self, msg, *args, **kwargs):
@@ -74,9 +65,7 @@ class BaseLogger(object):
         return self._logger.exception(msg, *args, **kwargs)
 
     def fatal(self, msg, *args, **kwargs):
-        notify.send_bark_push(
-            token=notify.get_token, msg=str(msg), prefix=WECHAT_PREFIX[0]
-        )
+        send_notify(msg=str(msg), prefix=WECHAT_PREFIX[0], level=2)
         return self._logger.fatal(msg, *args, **kwargs)
 
     def critical(self, msg, *args, **kwargs):

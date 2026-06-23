@@ -3,21 +3,37 @@
 """
 
 import logging
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QTextEdit, QPushButton, 
+import re
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QTextEdit, QPushButton,
                              QLabel, QHBoxLayout, QFileDialog, QMessageBox, )
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtCore import pyqtSignal, QThread
 from PyQt6.QtGui import QFont, QTextCursor, QColor
 from handlers.gui_log_handler import GUILogHandler
-from PyQt6.QtCore import QThread
-from config.config_manager import ConfigManager
-# import win32com.client  # Windows语音合成
-# import pythoncom  # COM线程初始化
-import os
-import re
 
-# 创建后台任务线程
+
+def _extract_course_name(message):
+    """从日志消息中提取课程名称"""
+    match = re.search(r"Course\(([^,]+),", message)
+    if match:
+        return match.group(1).strip()
+    return None
+
+
+def _extract_class_number(message):
+    """从日志消息中提取班号"""
+    match = re.search(r'Course\(([^)]+)\)', message)
+    if match:
+        parts = [p.strip() for p in match.group(1).split(',')]
+        if len(parts) >= 2 and parts[1].isdigit():
+            return int(parts[1])
+    return None
+
+
 class NotificationWorker(QThread):
-    """后台执行通知任务的线程"""
+    """弹窗通知工作线程（UI 侧，不阻塞选课进程）。
+
+    通过 Qt 信号将弹窗请求投递到 GUI 主线程执行。
+    """
     notification_triggered = pyqtSignal(str)
     finished = pyqtSignal()
 
@@ -26,113 +42,8 @@ class NotificationWorker(QThread):
         self.message = message
 
     def run(self):
-        # 发送信号触发弹窗（在主线程中执行）
         self.notification_triggered.emit(self.message)
-        # 获取提醒配置
-        self.notification_config = ConfigManager.get_notification_settings()
-        if "yanxx_voice" not in self.notification_config.keys():
-            self.notification_config["yanxx_voice"] = False
-        if "yanxx_weixin" not in self.notification_config.keys():
-            self.notification_config["yanxx_weixin"] = False
-        if "yanxx_weixin_user" not in self.notification_config.keys():
-            self.notification_config["yanxx_weixin_user"] = ""
-
-        # 先发微信通知
-        if self.notification_config["yanxx_weixin"]:
-            # import wxauto4
-            pass
-        
-
-        # 后语音提醒
-        # if self.notification_config["yanxx_voice"]:
-        #     # 初始化COM线程
-        #     pythoncom.CoInitialize()
-
-        #     try:
-        #         # 创建语音合成对象
-        #         speaker = win32com.client.Dispatch("SAPI.SpVoice")
-                            
-        #         # 获取所有可用的语音
-        #         voices = speaker.GetVoices()
-                
-        #         # 查找女声语音（根据描述中包含"Female"）
-        #         female_voice = None
-        #         for i in range(voices.Count):
-        #             voice = voices.Item(i)
-        #             if "Female" in voice.GetDescription():
-        #                 female_voice = voice
-        #                 break
-
-        #         # 查找默认女声
-        #         if female_voice is None:
-        #             # 尝试按名称找
-        #             known_female_voices = ["Microsoft Huihui", "Microsoft Xiaoxiao"]
-        #             for i in range(voices.Count):
-        #                 voice = voices.Item(i)
-        #                 description = voice.GetDescription()
-        #                 if any(name in description for name in known_female_voices):
-        #                     female_voice = voice
-        #                     break
-
-        #             if female_voice is not None:
-        #                 speaker.Voice = female_voice
-                
-        #         # 如果找到女声则设置，否则使用默认语音
-        #         if female_voice:
-        #             speaker.Voice = female_voice
-                
-        #         # 提取课程名称和班号
-        #         course_name = self.extract_course_name(self.message)
-        #         class_number = self.extract_class_number(self.message)
-        #         if "is AVAILABLE" in self.message:
-        #             if course_name and class_number:
-        #                 speech_text = f"严小希提醒您：{course_name}课程{class_number}班有空余名额啦，快去选课吧！"
-        #             elif course_name:
-        #                 speech_text = f"严小希提醒您：{course_name}课程有空余名额啦，快去选课吧！"
-        #             else:
-        #                 speech_text = "严小希提醒您：检测存在课程有空余名额，请及时登录选课网查看！"
-        #         elif "is ELECTED" in self.message:
-        #             if course_name and class_number:
-        #                 speech_text = f"严小希提醒您：已经选上 {course_name}课程{class_number}班！"
-        #             elif course_name:
-        #                 speech_text = f"严小希提醒您：已经选上 {course_name}课程！"
-        #             else:
-        #                 speech_text = "严小希提醒您：检测存在课程已被选上，请及时登录选课网查看！"
-        #         # 朗读文本
-        #         speaker.Speak(speech_text)
-        #     except Exception as e:
-        #         print(f"语音合成失败: {e}")
-        #     finally:
-        #         # 清理COM线程
-        #         pythoncom.CoUninitialize()
-        
-        # 发送完成信号
         self.finished.emit()
-
-
-    
-    def extract_course_name(self, message):
-        """从日志消息中提取课程名称"""
-        # 使用正则表达式匹配课程名称
-        # 示例日志: [07:56:59][INFO] Course(羽毛球, 5, 体育教研部, 30 / 0) is AVAILABLE now !
-        match = re.search(r"Course\(([^,]+),", message)
-        if match:
-            return match.group(1).strip()
-        return None
-    
-    def extract_class_number(self, message):
-        pattern = r'Course\(([^)]+)\)'
-        match = re.search(pattern, message)
-        
-        if match:
-            course_content = match.group(1)  # 获取括号内的内容
-            parts = [part.strip() for part in course_content.split(',')]
-            
-            # 确保有足够的部分且第二个部分是数字
-            if len(parts) >= 2 and parts[1].isdigit():
-                return int(parts[1])  # 返回班号
-        
-        return None  # 如果提取失败返回None
 
 
 
@@ -209,10 +120,9 @@ class LogDisplay(QWidget):
         logging.getLogger('requests').setLevel(logging.WARNING)
 
     def show_notification(self, message):
-        """显示通知弹窗"""
-        # 提取课程名称和班号
-        course_name = self.extract_course_name(message)
-        class_number = self.extract_class_number(message)
+        """显示通知弹窗（在 GUI 主线程中执行）"""
+        course_name = _extract_course_name(message)
+        class_number = _extract_class_number(message)
         
         if "is AVAILABLE" in message:
             if course_name and class_number:
@@ -236,29 +146,6 @@ class LogDisplay(QWidget):
             QMessageBox.StandardButton.Ok
         )
 
-    def extract_course_name(self, message):
-        """从日志消息中提取课程名称"""
-        
-        # 使用正则表达式匹配课程名称
-        match = re.search(r"Course\(([^,]+),", message)
-        if match:
-            return match.group(1).strip()
-        return None
-    
-    def extract_class_number(self, message):
-        pattern = r'Course\(([^)]+)\)'
-        match = re.search(pattern, message)
-        
-        if match:
-            course_content = match.group(1)  # 获取括号内的内容
-            parts = [part.strip() for part in course_content.split(',')]
-            
-            # 确保有足够的部分且第二个部分是数字
-            if len(parts) >= 2 and parts[1].isdigit():
-                return int(parts[1])  # 返回班号
-        
-        return None  # 如果提取失败返回None
-    
     def add_log(self, message):
         """添加日志消息"""
         # 如果消息已经包含时间戳，直接显示

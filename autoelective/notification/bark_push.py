@@ -90,6 +90,3 @@ class Notify(object):
 def test_notify(_token_: str):
     notify = Notify(_token=_token_, _interval_lock=0, _disable_push=0, _verbosity=2)
     notify.send_bark_push(msg="This is a test.", prefix="[测试]")
-
-
-test_notify("")  # 在单引号内填入您的token
